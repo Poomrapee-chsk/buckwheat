@@ -85,6 +85,7 @@ fun SlipImport(
 
     val watchEnabled by foldersViewModel.watchEnabled.observeAsState(false)
     val watchedFolders by foldersViewModel.watchedFolders.observeAsState(emptyList())
+    val periodStart by foldersViewModel.periodStart.observeAsState(java.util.Date())
 
     // Slips found in watched folders, e.g. after tapping a notification
     LaunchedEffect(Unit) { slipImportViewModel.loadPending() }
@@ -206,13 +207,40 @@ fun SlipImport(
                             textAlign = TextAlign.Center,
                         )
                     }
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp),
-                        onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
-                    ) {
-                        Text(stringResource(R.string.slip_import_choose_folders))
+                    if (watchedFolders.isNotEmpty()) {
+                        // Scan the chosen folders again, from the start of this budget period
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            onClick = {
+                                slipImportViewModel.scanFolders(watchedFolders.map { it.bucketId }, periodStart)
+                            },
+                        ) {
+                            Text(
+                                stringResource(
+                                    R.string.slip_import_scan_folders,
+                                    watchedFolders.joinToString(", ") { it.name },
+                                )
+                            )
+                        }
+                        OutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
+                        ) {
+                            Text(stringResource(R.string.slip_import_more_options))
+                        }
+                    } else {
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
+                        ) {
+                            Text(stringResource(R.string.slip_import_choose_folders))
+                        }
                     }
                     OutlinedButton(
                         modifier = Modifier

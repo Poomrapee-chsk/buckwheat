@@ -254,4 +254,11 @@
     <item quantity="one">Discard %d unticked slip</item>
     <item quantity="other">Discard %d unticked slips</item>
   </plurals>
+  <plurals name="slip_folders_scan_n">
+    <item quantity="one">Scan %d folder for slips</item>
+    <item quantity="other">Scan %d folders for slips</item>
+  </plurals>
+  <string name="slip_folders_check_now">Check for new slips now</string>
+  <string name="slip_import_scan_folders">Scan %1$s for slips</string>
+  <string name="slip_import_more_options">Folders and older slips</string>
 </resources>

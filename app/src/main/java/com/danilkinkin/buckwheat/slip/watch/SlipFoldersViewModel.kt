@@ -63,6 +63,9 @@ class SlipFoldersViewModel @Inject constructor(
         askImportPast = emptyList()
     }
 
+    /** Looks for new slips in the watched folders right away, instead of waiting for Android */
+    fun checkNow() = SlipWatchWorker.checkNow(context)
+
     fun setWatchEnabled(enabled: Boolean) {
         viewModelScope.launch {
             settings.setEnabled(enabled)

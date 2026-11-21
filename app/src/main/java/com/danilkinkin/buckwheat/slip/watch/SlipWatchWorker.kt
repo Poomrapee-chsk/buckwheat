@@ -141,6 +141,17 @@ class SlipWatchWorker(
             )
         }
 
+        /** One run now; it registers the photo library trigger again when it ends */
+        fun checkNow(context: Context) {
+            WorkManager.getInstance(context).enqueueUniqueWork(
+                CHECK_NOW_WORK,
+                ExistingWorkPolicy.KEEP,
+                OneTimeWorkRequestBuilder<SlipWatchWorker>().build(),
+            )
+        }
+
+        private const val CHECK_NOW_WORK = "slipWatchNow"
+
         fun stop(context: Context) {
             WorkManager.getInstance(context).apply {
                 cancelUniqueWork(TRIGGER_WORK)

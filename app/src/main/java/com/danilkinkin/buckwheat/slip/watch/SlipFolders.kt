@@ -137,8 +137,9 @@ fun SlipFolders(
 
             Column(
                 modifier = Modifier
+                    .weight(1f, fill = false)
                     .verticalScroll(rememberScrollState())
-                    .padding(bottom = navigationBarHeight),
+                    .padding(bottom = if (foldersViewModel.hasAccess) 16.dp else navigationBarHeight),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 if (!foldersViewModel.hasAccess) {
@@ -191,6 +192,14 @@ fun SlipFolders(
                         },
                     )
                 }
+                if (watchEnabled) {
+                    TextButton(
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        onClick = { foldersViewModel.checkNow() },
+                    ) {
+                        Text(stringResource(R.string.slip_folders_check_now))
+                    }
+                }
 
                 Text(
                     modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 16.dp),
@@ -238,57 +247,63 @@ fun SlipFolders(
                     }
                 }
 
-                // Scan slips saved before
-                Text(
-                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 24.dp),
-                    text = stringResource(R.string.slip_folders_scan_past),
-                    style = MaterialTheme.typography.titleMedium,
-                )
-                Text(
-                    modifier = Modifier.padding(horizontal = 24.dp),
-                    text = stringResource(R.string.slip_folders_scan_past_description),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = LocalContentColor.current.copy(alpha = 0.7f),
-                )
-                Row(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    OutlinedButton(
-                        modifier = Modifier.heightIn(min = 56.dp),
-                        onClick = { showDatePicker = true },
+            }
+
+            // Always visible, however long the folder list: import slips already in the folders
+            if (foldersViewModel.hasAccess) {
+                Surface(tonalElevation = 3.dp) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = navigationBarHeight),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
                         Text(
-                            stringResource(
-                                R.string.slip_folders_scan_from,
-                                prettyDate(scanFromDate.toDate(), pattern = "dd MMM yyyy", simplifyIfToday = false),
-                            )
+                            text = stringResource(R.string.slip_folders_scan_past),
+                            style = MaterialTheme.typography.titleSmall,
                         )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            OutlinedButton(
+                                modifier = Modifier.heightIn(min = 48.dp),
+                                onClick = { showDatePicker = true },
+                            ) {
+                                Text(
+                                    if (scanFrom == ALL_TIME) {
+                                        stringResource(R.string.slip_folders_scan_all)
+                                    } else {
+                                        stringResource(
+                                            R.string.slip_folders_scan_from,
+                                            prettyDate(scanFromDate.toDate(), pattern = "dd MMM yyyy", simplifyIfToday = false),
+                                        )
+                                    }
+                                )
+                            }
+                            if (scanFrom != ALL_TIME) {
+                                TextButton(onClick = { scanFrom = ALL_TIME }) {
+                                    Text(stringResource(R.string.slip_folders_scan_all))
+                                }
+                            }
+                            Spacer(Modifier.weight(1f))
+                        }
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            enabled = watchedIds.isNotEmpty() && !slipImportViewModel.isReading,
+                            onClick = {
+                                slipImportViewModel.scanFolders(watchedIds, scanFromDate.toDate())
+                                appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
+                                onClose()
+                            },
+                        ) {
+                            Text(
+                                pluralStringResource(R.plurals.slip_folders_scan_n, watchedIds.size, watchedIds.size)
+                            )
+                        }
                     }
-                    Button(
-                        modifier = Modifier
-                            .weight(1f)
-                            .heightIn(min = 56.dp),
-                        enabled = watchedIds.isNotEmpty() && !slipImportViewModel.isReading,
-                        onClick = {
-                            slipImportViewModel.scanFolders(watchedIds, scanFromDate.toDate())
-                            appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
-                            onClose()
-                        },
-                    ) {
-                        Text(stringResource(R.string.slip_folders_scan))
-                    }
-                }
-                TextButton(
-                    modifier = Modifier.padding(horizontal = 16.dp),
-                    onClick = {
-                        slipImportViewModel.scanFolders(watchedIds, ALL_TIME.toDate())
-                        appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
-                        onClose()
-                    },
-                    enabled = watchedIds.isNotEmpty() && !slipImportViewModel.isReading,
-                ) {
-                    Text(stringResource(R.string.slip_folders_scan_all_now))
                 }
             }
         }
