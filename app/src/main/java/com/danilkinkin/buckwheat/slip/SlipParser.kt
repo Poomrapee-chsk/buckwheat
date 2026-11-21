@@ -54,7 +54,8 @@ object SlipParser {
     private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d{1,2})?(?![\d,])""")
     private val CURRENCY = Regex("""บาท|thb|฿""", RegexOption.IGNORE_CASE)
     private val TEXT_DATE = Regex(
-        """(?<!\d)(\d{1,2})\s*([ก-๛A-Za-z][ก-๛A-Za-z.\s]{1,14}?)\s*(\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d))?"""
+        // Month may start with a zero read for "O": "27 0ct 2026"
+        """(?<!\d)(\d{1,2})\s*([ก-๛A-Za-z0][ก-๛A-Za-z.\s]{1,14}?)\s*(\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d))?"""
     )
     private val NUMERIC_DATE = Regex(
         """(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*:\s*(\d{2})(?!\d))?"""
@@ -63,12 +64,17 @@ object SlipParser {
     private val ACCOUNT_LIKE = Regex("""(?:[xX*]{2,}|\d{3,})-[xX*\d]""")
 
     fun parse(rawText: String): SlipData {
-        val lines = rawText.lines().map { normalize(it) }.filter { it.isNotBlank() }
+        // Empty lines mark large gaps between blocks, only used to find the payee
+        val withGaps = rawText.lines().map { normalize(it) }
+        val lines = withGaps.filter { it.isNotBlank() }
 
         return SlipData(
             amount = findAmount(lines),
             dateTime = findDateTime(lines),
-            payee = findLabeledValue(lines, PAYEE_LABELS) ?: findUnlabeledPayee(lines),
+            // A payee is a name: "RE" under a blurred "MERCHANT NO" line is not
+            payee = findLabeledValue(lines, PAYEE_LABELS)
+                ?.takeIf { value -> value.count { isWordChar(it) } >= 3 }
+                ?: findUnlabeledPayee(withGaps),
             note = findLabeledValue(lines, NOTE_LABELS),
         )
     }
@@ -224,7 +230,7 @@ object SlipParser {
     }
 
     private fun englishMonth(token: String): Int? {
-        val t = token.lowercase().replace(".", "").trim()
+        val t = token.lowercase().replace(".", "").replace('0', 'o').trim()
         if (t.length < 3) return null
         val index = EN_MONTHS.indexOf(t.take(3))
         return if (index >= 0) index + 1 else null
@@ -281,6 +287,9 @@ object SlipParser {
 
     private val SUCCESS = Regex("completed|successful|success", RegexOption.IGNORE_CASE)
 
+    // The sender's bank and account type, not the payee: "ธ.กสิกรไทย", "by KBank", "พร้อมเพย์"
+    private val BANK_LINE = Regex("^ธ\\.|ธนาคาร|bank|พร้อมเพย์|promptpay", RegexOption.IGNORE_CASE)
+
     /** Letters plus Thai vowel and tone marks, which are not letters for [Char.isLetter] */
     private fun isWordChar(c: Char): Boolean = c.isLetter() ||
             Character.getType(c) == Character.NON_SPACING_MARK.toInt() ||
@@ -294,6 +303,7 @@ object SlipParser {
     private fun nameOnLine(line: String): String? {
         if (isAnyLabel(line) || ACCOUNT_LIKE.containsMatchIn(line)) return null
         if (SUCCESS.containsMatchIn(line) || skeleton(line).contains(skeleton("สำเร็จ"))) return null
+        if (BANK_LINE.containsMatchIn(line)) return null
 
         // Decorations on the right are separated from the text by a wide gap
         val tokens = line.split(Regex("""\s{2,}""")).first()
@@ -308,13 +318,14 @@ object SlipParser {
         return name.takeIf { wordChars >= 3 && digits <= 2 && skeleton(it).length >= 3 }
     }
 
+    /** @param lines may contain empty lines: gaps between blocks */
     private fun findUnlabeledPayee(lines: List<String>): String? {
-        val firstLabel = lines.indexOfFirst { isAnyLabel(it) }.let { if (it < 0) lines.size else it }
+        val firstLabel = lines.indexOfFirst { it.isNotBlank() && isAnyLabel(it) }.let { if (it < 0) lines.size else it }
 
         var lastBlock: String? = null
         var inBlock = false
         lines.take(firstLabel).forEach { line ->
-            val name = nameOnLine(line)
+            val name = if (line.isBlank()) null else nameOnLine(line)
             if (name != null && !inBlock) lastBlock = name
             inBlock = name != null
         }

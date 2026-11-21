@@ -56,8 +56,19 @@ android {
     }
 
     androidResources {
-        // OCR language data is read with openFd() to check its size, so keep it uncompressed
-        noCompress += "traineddata"
+        // OCR models: no point compressing them, and they load faster stored as is
+        noCompress += "onnx"
+    }
+
+    splits {
+        // The OCR runtime is native code for each CPU type. Besides the universal APK,
+        // build one per type: much smaller to sideload (arm64-v8a fits most phones)
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+            isUniversalApk = true
+        }
     }
 
     bundle {
@@ -107,8 +118,8 @@ dependencies {
     implementation("com.google.dagger:hilt-android:2.57")
     implementation("org.apache.commons:commons-csv:1.14.0")
 
-    // On-device OCR for reading payment slips (Thai + English), Apache-2.0
-    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
+    // On-device OCR for reading payment slips (Thai + English): runs the models in assets/ocr, MIT
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.23.2")
 
     // Background scan of watched folders for new slips (already pulled in by Glance, pinned newer)
     implementation("androidx.work:work-runtime-ktx:2.11.2")

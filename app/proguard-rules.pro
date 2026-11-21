@@ -23,6 +23,5 @@
 # Repackage classes into the top-level.
 -repackageclasses
 
-# Tesseract4Android (slip OCR): the native library looks up Java members by name
-# (e.g. TessBaseAPI.onProgressValues), and the AAR ships no consumer rules
--keep class com.googlecode.tesseract.android.** { *; }
+# ONNX Runtime (slip OCR): the native library creates and reads Java objects by name
+-keep class ai.onnxruntime.** { *; }

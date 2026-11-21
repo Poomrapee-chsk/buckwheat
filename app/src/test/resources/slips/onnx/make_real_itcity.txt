@@ -1,0 +1,16 @@
+PAYMENT COMPLETED
+27 0ct 2026 19:10     by KBank
+
+SOMCHAI J     วน
+
+IT CITY PUBLIC
+COMPANY LIMITED
+
+Amount
+1,330.00 Baht
+Fee
+0.00 Baht     Scan to verify
+
+Transaction ID
+MERCHANT
+RE

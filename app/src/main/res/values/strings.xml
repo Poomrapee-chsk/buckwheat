@@ -214,4 +214,7 @@
   <string name="export_current_period">Current period</string>
   <string name="export_current_period_description">Spends of this budget period</string>
   <string name="export_all_periods">All periods</string>
+  <string name="slip_notification_not_addable_title">Found a %1$s slip from %2$s</string>
+  <string name="slip_notification_not_addable_period">It\'s from before this budget period, so it can\'t be added</string>
+  <string name="slip_notification_not_addable_future">Its date is in the future, so it can\'t be added</string>
 </resources>
