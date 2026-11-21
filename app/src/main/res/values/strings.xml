@@ -221,8 +221,6 @@
   <string name="slip_import_hide_text">Hide recognized text</string>
   <string name="slip_import_no_text">(no text was recognized)</string>
   <string name="slip_import_ocr_error">Slips can\'t be read on this phone: %1$s</string>
-  <string name="start_date_today">Starts today</string>
-  <string name="start_date_label">Starts %1$s</string>
   <string name="import_history_csv">Import history from CSV</string>
   <string name="import_history_csv_description">From an \"All periods\" export; what\'s already here is skipped</string>
   <plurals name="import_history_done">
@@ -240,4 +238,13 @@
   </plurals>
   <string name="slip_past_budget_label">Budget per month</string>
   <string name="slip_past_budget_add">Add</string>
+  <string name="select_period_title">Choose the budget period</string>
+  <plurals name="period_label">
+    <item quantity="one">%1$s – %2$s (%3$d day)</item>
+    <item quantity="other">%1$s – %2$s (%3$d days)</item>
+  </plurals>
+  <plurals name="period_days_left">
+    <item quantity="one">%d day left, including today</item>
+    <item quantity="other">%d days left, including today</item>
+  </plurals>
 </resources>

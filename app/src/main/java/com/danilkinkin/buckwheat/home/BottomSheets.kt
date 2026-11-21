@@ -97,15 +97,18 @@ fun BottomSheets(
         name = FINISH_DATE_SELECTOR_SHEET,
     ) { state ->
         FinishDateSelector(
+            selectStartDate = state.args["startDate"] as Date?,
             selectDate = state.args["initialDate"] as Date?,
+            minStartDate = state.args["minStartDate"] as java.time.LocalDate?,
+            maxStartDate = state.args["maxStartDate"] as java.time.LocalDate?,
             onBackPressed = {
                 coroutineScope.launch {
                     state.hide()
                 }
             },
-            onApply = {
+            onApply = { startDate, finishDate ->
                 coroutineScope.launch {
-                    state.hide(mapOf("finishDate" to it))
+                    state.hide(mapOf("startDate" to startDate, "finishDate" to finishDate))
                 }
             },
         )
