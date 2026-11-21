@@ -65,6 +65,7 @@ fun History(
     var historyList by remember { mutableStateOf<List<RowEntity>>(emptyList()) }
     val budget = spendsViewModel.budget.observeAsState(initial = BigDecimal.ZERO)
     val currency = spendsViewModel.currency.observeAsState(initial = ExtendCurrency.none())
+    val slipDetails by spendsViewModel.slipDetails.observeAsState(emptyMap())
     val startPeriodDate = spendsViewModel.startPeriodDate.observeAsState(initial = Date())
     val finishPeriodDate = spendsViewModel.finishPeriodDate.observeAsState(initial = Date())
     val scrollToBottom = remember { mutableStateOf(true) }
@@ -281,14 +282,16 @@ fun History(
                                 ) {
                                     SpentItem(
                                         transaction = row.transaction!!,
-                                        currency = currency.value
+                                        currency = currency.value,
+                                        payee = slipDetails[row.transaction!!.uid]?.payee,
                                     )
                                 }
                             }
                         } else {
                             SpentItem(
                                 transaction = row.transaction!!,
-                                currency = currency.value
+                                currency = currency.value,
+                                payee = slipDetails[row.transaction!!.uid]?.payee,
                             )
                         }
                     }

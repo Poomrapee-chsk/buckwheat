@@ -349,7 +349,11 @@ fun Keyboard(
                                                     automaticTreat = false,
                                                     comment = (editorViewModel.currentComment.value
                                                         ?: "").trim()
-                                                )
+                                                ).apply {
+                                                    // copy() doesn't carry uid (declared in the body).
+                                                    // Keep it, so details imported from a slip stay linked
+                                                    uid = editorViewModel.editedTransaction!!.uid
+                                                }
 
                                             spendsViewModel.removeSpent(
                                                 editorViewModel.editedTransaction!!,

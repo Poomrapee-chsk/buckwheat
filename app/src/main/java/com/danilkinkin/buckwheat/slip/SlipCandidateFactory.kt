@@ -1,5 +1,6 @@
 package com.danilkinkin.buckwheat.slip
 
+import com.danilkinkin.buckwheat.data.entities.SlipDetails
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 import com.danilkinkin.buckwheat.di.SpendsRepository
@@ -44,6 +45,7 @@ data class SlipCandidate(
     val rawText: String = "",
     /** Why the image couldn't be read at all, e.g. an OCR engine error */
     val error: String? = null,
+    val reference: String? = null,
 ) {
     val amount: BigDecimal?
         get() = amountText.replace(",", "").trim().toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
@@ -57,6 +59,15 @@ data class SlipCandidate(
         get() = canBeAdded && amount != null && warnings.none {
             it == SlipWarning.DUPLICATE || it == SlipWarning.NO_DATE || it == SlipWarning.UNREADABLE
         }
+
+    fun toDetails() = SlipDetails(
+        transactionUid = 0,
+        payee = payee,
+        reference = reference,
+        note = note,
+        rawText = rawText,
+        mediaId = mediaId,
+    )
 
     fun toTransaction() = Transaction(
         type = TransactionType.SPENT,
@@ -73,6 +84,8 @@ class SlipCandidateFactory(
     private val existingSpends: List<Transaction>,
     private val periodStart: Date,
     private val now: Date = Date(),
+    /** References of slips already added, in any period */
+    private val usedReferences: Set<String> = emptySet(),
 ) {
     fun build(
         id: Int,
@@ -90,6 +103,13 @@ class SlipCandidateFactory(
         if (slip.dateTime == null) warnings += SlipWarning.NO_DATE
         if (date.before(periodStart)) warnings += SlipWarning.OUTSIDE_PERIOD
         if (date.time > now.time + FUTURE_TOLERANCE) warnings += SlipWarning.FUTURE
+
+        // Same bank transfer: certain, whatever the amount or time
+        if (slip.reference != null &&
+            (slip.reference in usedReferences || others.any { it.reference == slip.reference })
+        ) {
+            warnings += SlipWarning.DUPLICATE
+        }
 
         if (slip.amount != null) {
             val sameSpend = { value: BigDecimal?, other: Date ->
@@ -116,6 +136,7 @@ class SlipCandidateFactory(
             mediaId = mediaId,
             rawText = text,
             error = error,
+            reference = slip.reference,
         )
 
         return candidate.copy(selected = candidate.canBeAddedDirectly)
@@ -127,6 +148,7 @@ class SlipCandidateFactory(
      */
     fun stillAddable(candidate: SlipCandidate): Boolean {
         val amount = candidate.amount ?: return false
+        if (candidate.reference != null && candidate.reference in usedReferences) return false
         if (candidate.date.before(periodStart) || candidate.date.time > now.time + FUTURE_TOLERANCE) return false
 
         return existingSpends.none {
@@ -153,6 +175,7 @@ class SlipCandidateFactory(
                 payeeTags = tagMemory.getAll(),
                 existingSpends = spendsRepository.getAllSpends().asFlow().first(),
                 periodStart = roundToDay(spendsRepository.getStartPeriodDate().first()),
+                usedReferences = spendsRepository.getUsedSlipReferences(),
             )
         }
     }

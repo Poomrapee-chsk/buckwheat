@@ -4,6 +4,7 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.map
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import com.danilkinkin.buckwheat.data.entities.Period
@@ -27,6 +28,9 @@ class SpendsViewModel @Inject constructor(
     private val spendsRepository: SpendsRepository,
 ) : ViewModel() {
     val spendingHistory = spendsRepository.getSpendingHistory()
+
+    /** Details read from payment slips, keyed by transaction uid */
+    val slipDetails = spendsRepository.getAllSlipDetails().map { list -> list.associateBy { it.transactionUid } }
     var tags = spendsRepository.getAllTags()
     var transactions = spendsRepository.getAllTransactions()
     var spends = spendsRepository.getAllSpends()

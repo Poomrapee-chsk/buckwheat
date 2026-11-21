@@ -5,6 +5,8 @@ import androidx.room.migration.AutoMigrationSpec
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.danilkinkin.buckwheat.data.dao.PeriodDao
+import com.danilkinkin.buckwheat.data.dao.SlipDetailsDao
+import com.danilkinkin.buckwheat.data.entities.SlipDetails
 import com.danilkinkin.buckwheat.data.dao.StorageDao
 import com.danilkinkin.buckwheat.data.dao.TransactionDao
 import com.danilkinkin.buckwheat.data.entities.Period
@@ -75,9 +77,25 @@ val Migration6to7: Migration = object : Migration(6, 7) {
     }
 }
 
+// Add details read from payment slips: new "slip_details" table, nothing else changes
+val Migration7to8: Migration = object : Migration(7, 8) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        MIGRATION_7_8_SQL.forEach { database.execSQL(it) }
+    }
+}
+
+/** Same statements as Room's schema export for version 8 (schemas/.../8.json) */
+val MIGRATION_7_8_SQL = listOf(
+    "CREATE TABLE IF NOT EXISTS `slip_details` (`transactionUid` INTEGER NOT NULL, `payee` TEXT, " +
+            "`reference` TEXT, `note` TEXT, `rawText` TEXT NOT NULL DEFAULT '', `mediaId` INTEGER, " +
+            "`uid` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)",
+    "CREATE UNIQUE INDEX IF NOT EXISTS `index_slip_details_transactionUid` ON `slip_details` (`transactionUid`)",
+    "CREATE INDEX IF NOT EXISTS `index_slip_details_reference` ON `slip_details` (`reference`)",
+)
+
 @Database(
-    entities = [Transaction::class, Storage::class, Period::class],
-    version = 7,
+    entities = [Transaction::class, Storage::class, Period::class, SlipDetails::class],
+    version = 8,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = AutoMigration1to2::class),
         AutoMigration(from = 2, to = 3, spec = AutoMigration2to3::class),
@@ -94,7 +112,9 @@ abstract class DatabaseModule : RoomDatabase() {
 
     abstract fun periodDao(): PeriodDao
 
+    abstract fun slipDetailsDao(): SlipDetailsDao
+
     companion object {
-        val MANUAL_MIGRATIONS = arrayOf(AutoMigration4to5, AutoMigration5to6, Migration6to7)
+        val MANUAL_MIGRATIONS = arrayOf(AutoMigration4to5, AutoMigration5to6, Migration6to7, Migration7to8)
     }
 }

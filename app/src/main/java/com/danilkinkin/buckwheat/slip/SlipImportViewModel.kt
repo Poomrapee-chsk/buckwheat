@@ -159,7 +159,7 @@ class SlipImportViewModel @Inject constructor(
         val seenPending = shownPendingIds.toList()
 
         viewModelScope.launch {
-            toAdd.forEach { spendsRepository.addSpent(it.toTransaction()) }
+            toAdd.forEach { spendsRepository.addSpentFromSlip(it.toTransaction(), it.toDetails()) }
 
             tagMemory.remember(
                 toAdd

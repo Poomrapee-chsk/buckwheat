@@ -37,6 +37,10 @@ interface TransactionDao {
     @Insert
     fun insert(vararg transaction: Transaction)
 
+    /** @return the new uid */
+    @Insert
+    fun insertOne(transaction: Transaction): Long
+
     @Update(entity = Transaction::class, onConflict = OnConflictStrategy.REPLACE)
     fun update(vararg transaction: Transaction)
 

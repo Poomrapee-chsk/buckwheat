@@ -18,14 +18,45 @@ class SlipCandidateFactoryTest {
     private fun fixture(name: String): String =
         javaClass.classLoader!!.getResource("slips/$name.txt")!!.readText()
 
-    private fun factory(existing: List<Transaction> = emptyList(), periodStart: Date = date(2026, 11, 1)) =
-        SlipCandidateFactory(
-            tagCounts = mapOf("Matcha" to 3),
-            payeeTags = emptyMap(),
-            existingSpends = existing,
-            periodStart = periodStart,
-            now = date(2026, 11, 21, 18, 0),
-        )
+    private fun factory(
+        existing: List<Transaction> = emptyList(),
+        periodStart: Date = date(2026, 11, 1),
+        usedReferences: Set<String> = emptySet(),
+    ) = SlipCandidateFactory(
+        tagCounts = mapOf("Matcha" to 3),
+        payeeTags = emptyMap(),
+        existingSpends = existing,
+        periodStart = periodStart,
+        now = date(2026, 11, 21, 18, 0),
+        usedReferences = usedReferences,
+    )
+
+    private fun onnxFixture(name: String): String =
+        javaClass.classLoader!!.getResource("slips/onnx/$name.txt")!!.readText()
+
+    @Test
+    fun sameReferenceIsDuplicateWhateverTheTime() {
+        // The reference is certain, even if a hand-added spend has another time
+        val used = setOf("016325143212ATF04567")
+        val candidate = factory(usedReferences = used).build(0, onnxFixture("kbank"))
+
+        assertEquals("016325143212ATF04567", candidate.reference)
+        assertTrue(SlipWarning.DUPLICATE in candidate.warnings)
+        assertFalse(candidate.selected)
+        assertFalse(factory(usedReferences = used).stillAddable(candidate))
+    }
+
+    @Test
+    fun detailsKeepWhatWasRead() {
+        val candidate = factory().build(0, onnxFixture("kbank"), mediaId = 9)
+        val details = candidate.toDetails()
+
+        assertEquals("ร้าน กาแฟดี", details.payee)
+        assertEquals("016325143212ATF04567", details.reference)
+        assertEquals("กาแฟเย็น", details.note)
+        assertEquals(9L, details.mediaId)
+        assertTrue(details.rawText.contains("เลขที่รายการ"))
+    }
 
     @Test
     fun goodSlipIsSelected() {

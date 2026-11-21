@@ -28,6 +28,8 @@ fun SpentItem(
     transaction: Transaction,
     currency: ExtendCurrency,
     modifier: Modifier = Modifier,
+    /** Shop or person paid, when the spend was imported from a slip */
+    payee: String? = null,
 ) {
     val context = LocalContext.current
     Column(Modifier.padding(bottom = 14.dp)) {
@@ -62,6 +64,16 @@ fun SpentItem(
                     softWrap = false,
                 )
             }
+        }
+        if (!payee.isNullOrBlank()) {
+            Text(
+                modifier = Modifier.padding(horizontal = 32.dp),
+                text = payee,
+                style = MaterialTheme.typography.labelMedium,
+                color = colorOnEditor.copy(alpha = 0.6f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
         }
         if (transaction.manualTreat || transaction.automaticTreat) {
             Text(

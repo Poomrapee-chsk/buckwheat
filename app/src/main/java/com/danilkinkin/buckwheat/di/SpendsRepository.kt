@@ -21,6 +21,7 @@ import com.danilkinkin.buckwheat.data.ExtendCurrency
 import com.danilkinkin.buckwheat.data.dao.PeriodDao
 import com.danilkinkin.buckwheat.data.dao.TransactionDao
 import com.danilkinkin.buckwheat.data.entities.Period
+import com.danilkinkin.buckwheat.data.entities.SlipDetails
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 import com.danilkinkin.buckwheat.errorForReport
 import com.danilkinkin.buckwheat.util.countDays
@@ -57,6 +58,23 @@ class SpendsRepository @Inject constructor(
 ) {
     fun getSpendingHistory() = transactionDao.getSpendingHistory()
 
+    private val slipDetailsDao get() = db.slipDetailsDao()
+
+    fun getAllSlipDetails(): LiveData<List<SlipDetails>> = slipDetailsDao.getAll()
+
+    /** References of imported slips whose spend still exists, for exact duplicate detection */
+    suspend fun getUsedSlipReferences(): Set<String> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            slipDetailsDao.getUsedReferences().toSet()
+        }
+
+    /** Adds a spend imported from a slip, with what was read from the slip */
+    suspend fun addSpentFromSlip(transaction: Transaction, details: SlipDetails): Int {
+        val uid = addSpent(transaction)
+        slipDetailsDao.insert(details.copy(transactionUid = uid))
+        return uid
+    }
+
     fun getAllTransactions(): LiveData<List<Transaction>> = transactionDao.getAll()
     fun getAllSpends(): LiveData<List<Transaction>> = transactionDao.getAll(TransactionType.SPENT)
 
@@ -77,6 +95,7 @@ class SpendsRepository @Inject constructor(
     suspend fun deletePeriod(periodId: Int) {
         transactionDao.deleteByPeriod(periodId)
         periodDao.deleteById(periodId)
+        slipDetailsDao.deleteOrphans()
 
         Log.d("SpendsRepository", "Deleted archived period [id: $periodId]")
     }
@@ -290,6 +309,8 @@ class SpendsRepository @Inject constructor(
             // Drop anything left unarchived (e.g. an unused prior budget with no
             // transactions), keeping archived history intact, then seed the new period.
             transactionDao.deleteCurrentPeriod()
+            // Slip details of spends that were just dropped
+            slipDetailsDao.deleteOrphans()
             transactionDao.insert(
                 Transaction(
                     TransactionType.INCOME,
@@ -610,8 +631,9 @@ class SpendsRepository @Inject constructor(
         }
     }
 
-    suspend fun addSpent(newTransaction: Transaction) {
-        this.transactionDao.insert(newTransaction)
+    /** @return uid of the added spend */
+    suspend fun addSpent(newTransaction: Transaction): Int {
+        val uid = this.transactionDao.insertOne(newTransaction).toInt()
 
         context.budgetDataStore.edit {
             try {
@@ -656,6 +678,8 @@ class SpendsRepository @Inject constructor(
                 context.errorForReport = e.stackTraceToString()
             }
         }
+
+        return uid
     }
 
     suspend fun removeSpent(transactionForRemove: Transaction) {
