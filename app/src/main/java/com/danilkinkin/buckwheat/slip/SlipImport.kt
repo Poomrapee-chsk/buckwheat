@@ -34,6 +34,13 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -183,6 +190,14 @@ fun SlipImport(
                     )
                 }
 
+                slipImportViewModel.ocrError?.let { error ->
+                    Text(
+                        text = stringResource(R.string.slip_import_ocr_error, error),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+
                 if (slipImportViewModel.isReading) {
                     Text(
                         text = stringResource(
@@ -304,6 +319,35 @@ private fun SlipCandidateCard(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                     )
+                }
+                candidate.error?.let { error ->
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+
+                // What OCR read: helps to see why an amount or date wasn't found
+                var showText by rememberSaveable(candidate.id) { mutableStateOf(false) }
+                TextButton(
+                    contentPadding = PaddingValues(horizontal = 0.dp),
+                    onClick = { showText = !showText },
+                ) {
+                    Text(
+                        stringResource(
+                            if (showText) R.string.slip_import_hide_text else R.string.slip_import_show_text
+                        )
+                    )
+                }
+                if (showText) {
+                    SelectionContainer {
+                        Text(
+                            text = candidate.rawText.ifBlank { stringResource(R.string.slip_import_no_text) },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                        )
+                    }
                 }
             }
         }

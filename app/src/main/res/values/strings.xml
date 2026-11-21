@@ -217,4 +217,8 @@
   <string name="slip_notification_not_addable_title">Found a %1$s slip from %2$s</string>
   <string name="slip_notification_not_addable_period">It\'s from before this budget period, so it can\'t be added</string>
   <string name="slip_notification_not_addable_future">Its date is in the future, so it can\'t be added</string>
+  <string name="slip_import_show_text">Show recognized text</string>
+  <string name="slip_import_hide_text">Hide recognized text</string>
+  <string name="slip_import_no_text">(no text was recognized)</string>
+  <string name="slip_import_ocr_error">Slips can\'t be read on this phone: %1$s</string>
 </resources>

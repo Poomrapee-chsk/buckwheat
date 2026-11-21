@@ -38,7 +38,9 @@ class SlipWatchWorker(
         var hasMore = false
         try {
             hasMore = scan(deps)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Log.e(TAG, "Slip scan failed", e)
         } finally {
             // Content URI triggers fire once, so wait for the next change again
@@ -84,7 +86,9 @@ class SlipWatchWorker(
             batch.forEach { image ->
                 val text = try {
                     recognizer.recognize(image.uri)
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
                     Log.w(TAG, "Can't read ${image.uri}", e)
                     ""
                 }
