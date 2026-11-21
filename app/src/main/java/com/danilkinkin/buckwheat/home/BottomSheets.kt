@@ -24,10 +24,6 @@ import com.danilkinkin.buckwheat.analytics.ANALYTICS_SHEET
 import com.danilkinkin.buckwheat.analytics.Analytics
 import com.danilkinkin.buckwheat.analytics.VIEWER_HISTORY_SHEET
 import com.danilkinkin.buckwheat.analytics.ViewerHistory
-import com.danilkinkin.buckwheat.archive.PAST_PERIODS_SHEET
-import com.danilkinkin.buckwheat.archive.PAST_PERIOD_SHEET
-import com.danilkinkin.buckwheat.archive.PastPeriod
-import com.danilkinkin.buckwheat.archive.PastPeriods
 import com.danilkinkin.buckwheat.onboarding.ON_BOARDING_SHEET
 import com.danilkinkin.buckwheat.onboarding.Onboarding
 import com.danilkinkin.buckwheat.recalcBudget.RECALCULATE_DAILY_BUDGET_SHEET
@@ -149,27 +145,6 @@ fun BottomSheets(
                 coroutineScope.launch { it.hide() }
             }
         )
-    }
-
-    BottomSheetWrapper(name = PAST_PERIODS_SHEET) { state ->
-        PastPeriods(
-            onClose = {
-                coroutineScope.launch { state.hide() }
-            }
-        )
-    }
-
-    BottomSheetWrapper(name = PAST_PERIOD_SHEET) { state ->
-        val periodId = state.args["periodId"] as Int?
-
-        if (periodId != null) {
-            PastPeriod(
-                periodId = periodId,
-                onClose = {
-                    coroutineScope.launch { state.hide() }
-                }
-            )
-        }
     }
 
     BottomSheetWrapper(

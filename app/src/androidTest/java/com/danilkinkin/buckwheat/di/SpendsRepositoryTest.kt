@@ -36,7 +36,6 @@ class SpendsRepositoryTest {
         spendsRepository = SpendsRepository(
             context = composeTestRule.activity,
             FakeTransactionDao(),
-            FakePeriodDao(),
             currentDateUseCase,
         )
     }

@@ -30,12 +30,13 @@ fun SpendsCountCard(
     modifier: Modifier = Modifier,
     count: Int,
     appViewModel: AppViewModel = hiltViewModel(),
-    onClick: () -> Unit = { appViewModel.openSheet(PathState(VIEWER_HISTORY_SHEET)) },
 ) {
     Card(
         modifier = modifier.height(IntrinsicSize.Min),
         shape = CircleShape,
-        onClick = onClick,
+        onClick = {
+            appViewModel.openSheet(PathState(VIEWER_HISTORY_SHEET))
+        }
     ) {
         val textColor = LocalContentColor.current
 

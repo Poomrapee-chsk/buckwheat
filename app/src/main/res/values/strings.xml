@@ -143,10 +143,4 @@
   <string name="confirm_finish_budget_title">Finish budget</string>
   <string name="confirm_finish_budget_description">Your current budget will be completed, and you will no longer be able to make any further expenses</string>
   <string name="confirm_finish_budget">Finish budget</string>
-  <string name="past_periods_title">Past periods</string>
-  <string name="past_periods_empty">Finished periods will appear here after you start a new budget</string>
-  <string name="past_period_title">Past period</string>
-  <string name="past_period_date_range">%1$s – %2$s</string>
-  <string name="past_period_spent_of">Spent %1$s of %2$s</string>
-  <string name="past_period_spends_title">Spending</string>
 </resources>
