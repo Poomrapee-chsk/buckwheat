@@ -16,6 +16,7 @@ import com.danilkinkin.buckwheat.slip.watch.SlipNotifications
 import com.danilkinkin.buckwheat.slip.watch.SlipWatchSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -36,6 +37,10 @@ class SlipImportViewModel @Inject constructor(
     var readCount by mutableIntStateOf(0)
         private set
     var totalCount by mutableIntStateOf(0)
+        private set
+
+    /** The OCR engine couldn't start at all */
+    var ocrError by mutableStateOf<String?>(null)
         private set
 
     /** Images of a folder scan that turned out not to be slips */
@@ -73,6 +78,7 @@ class SlipImportViewModel @Inject constructor(
         readCount = 0
         totalCount = sources.size
         skippedCount = 0
+        ocrError = null
 
         viewModelScope.launch {
             try {
@@ -86,25 +92,33 @@ class SlipImportViewModel @Inject constructor(
                             return@forEach
                         }
 
+                        var error: String? = null
                         val text = withContext(Dispatchers.Default) {
                             try {
                                 recognizer.recognize(source.uri)
-                            } catch (e: Exception) {
+                            } catch (e: CancellationException) {
+                                throw e
+                            } catch (e: Throwable) {
+                                // Throwable: a native library that fails to load throws an Error
                                 Log.e("SlipImport", "Failed to read slip ${source.uri}", e)
+                                error = e.toString()
                                 ""
                             }
                         }
 
-                        if (onlySlips && !SlipParser.looksLikeSlip(text)) {
+                        if (onlySlips && error == null && !SlipParser.looksLikeSlip(text)) {
                             skippedCount += 1
                         } else {
-                            candidates.add(factory.build(nextId++, text, candidates, source.mediaId))
+                            candidates.add(factory.build(nextId++, text, candidates, source.mediaId, error))
                         }
                         readCount += 1
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
                 Log.e("SlipImport", "OCR is not available", e)
+                ocrError = e.toString()
             } finally {
                 isReading = false
             }

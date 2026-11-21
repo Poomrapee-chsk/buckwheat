@@ -40,6 +40,10 @@ data class SlipCandidate(
     val selected: Boolean,
     /** MediaStore id when the slip came from a watched folder */
     val mediaId: Long? = null,
+    /** What OCR read, shown on request so a wrong reading can be understood */
+    val rawText: String = "",
+    /** Why the image couldn't be read at all, e.g. an OCR engine error */
+    val error: String? = null,
 ) {
     val amount: BigDecimal?
         get() = amountText.replace(",", "").trim().toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
@@ -75,6 +79,7 @@ class SlipCandidateFactory(
         text: String,
         others: List<SlipCandidate> = emptyList(),
         mediaId: Long? = null,
+        error: String? = null,
     ): SlipCandidate {
         val slip = SlipParser.parse(text)
         val date = slip.dateTime?.toDate() ?: now
@@ -109,6 +114,8 @@ class SlipCandidateFactory(
             warnings = warnings,
             selected = false,
             mediaId = mediaId,
+            rawText = text,
+            error = error,
         )
 
         return candidate.copy(selected = candidate.canBeAddedDirectly)

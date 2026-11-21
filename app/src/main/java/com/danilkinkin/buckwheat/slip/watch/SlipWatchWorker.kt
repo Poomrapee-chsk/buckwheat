@@ -38,7 +38,9 @@ class SlipWatchWorker(
         var hasMore = false
         try {
             hasMore = scan(deps)
-        } catch (e: Exception) {
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Throwable) {
             Log.e(TAG, "Slip scan failed", e)
         } finally {
             // Content URI triggers fire once, so wait for the next change again
@@ -78,12 +80,15 @@ class SlipWatchWorker(
 
         val factory = SlipCandidateFactory.load(repository, deps.tagMemory())
         val found = mutableListOf<SlipCandidate>()
+        val notAddable = mutableListOf<SlipCandidate>()
 
         SlipTextRecognizer(applicationContext).use { recognizer ->
             batch.forEach { image ->
                 val text = try {
                     recognizer.recognize(image.uri)
-                } catch (e: Exception) {
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Throwable) {
                     Log.w(TAG, "Can't read ${image.uri}", e)
                     ""
                 }
@@ -91,9 +96,12 @@ class SlipWatchWorker(
                 if (!SlipParser.looksLikeSlip(text)) return@forEach
 
                 val candidate = factory.build(found.size, text, found, image.mediaId)
-                // Already added by hand, or can't be added to this period: no need to bother the user
-                if (candidate.canBeAdded && SlipWarning.DUPLICATE !in candidate.warnings) {
-                    found += candidate
+                when {
+                    // Already added by hand: expected, no need to bother the user
+                    SlipWarning.DUPLICATE in candidate.warnings -> Unit
+                    candidate.canBeAdded -> found += candidate
+                    // Before this period or in the future: say so instead of dropping it silently
+                    else -> notAddable += candidate
                 }
             }
         }
@@ -103,6 +111,7 @@ class SlipWatchWorker(
 
         val currency = repository.getCurrency().first()
         found.forEach { SlipNotifications.show(applicationContext, it, currency) }
+        notAddable.forEach { SlipNotifications.showNotAddable(applicationContext, it, currency) }
 
         Log.d(TAG, "Scanned ${batch.size} images, found ${found.size} slips")
         return images.size > batch.size

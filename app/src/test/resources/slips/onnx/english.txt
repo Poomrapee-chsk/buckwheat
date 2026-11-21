@@ -1,0 +1,8 @@
+Transfer successful
+19 Nov 2026 18:45
+From     MR POOM C
+To     GRAB TAXI
+Amount     245.50 THB
+Fee     O.0O THB
+Note     Grab home
+Ref No.     FT26323ABCD

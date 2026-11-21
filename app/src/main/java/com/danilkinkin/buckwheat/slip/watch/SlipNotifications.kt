@@ -16,6 +16,7 @@ import com.danilkinkin.buckwheat.R
 import com.danilkinkin.buckwheat.data.ExtendCurrency
 import com.danilkinkin.buckwheat.slip.SLIP_IMPORT_SHEET
 import com.danilkinkin.buckwheat.slip.SlipCandidate
+import com.danilkinkin.buckwheat.slip.SlipWarning
 import com.danilkinkin.buckwheat.util.numberFormat
 import java.text.DateFormat
 
@@ -93,6 +94,36 @@ object SlipNotifications {
                 0, context.getString(R.string.slip_notification_dismiss),
                 actionIntent(context, SlipActionReceiver.ACTION_DISMISS, mediaId),
             )
+            .build()
+
+        try {
+            NotificationManagerCompat.from(context).notify(notificationId(mediaId), notification)
+        } catch (e: SecurityException) {
+            // Permission revoked between the check and now
+        }
+    }
+
+    /** A slip was found but can't be added: before the current period, or dated in the future */
+    fun showNotAddable(context: Context, candidate: SlipCandidate, currency: ExtendCurrency) {
+        val mediaId = candidate.mediaId ?: return
+        if (!canNotify(context)) return
+        ensureChannel(context)
+
+        val amount = candidate.amount?.let { numberFormat(context, it, currency = currency) } ?: return
+        val date = DateFormat.getDateInstance(DateFormat.MEDIUM).format(candidate.date)
+        val reason = context.getString(
+            if (SlipWarning.FUTURE in candidate.warnings) R.string.slip_notification_not_addable_future
+            else R.string.slip_notification_not_addable_period
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_money)
+            .setContentTitle(context.getString(R.string.slip_notification_not_addable_title, amount, date))
+            .setContentText(reason)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(listOfNotNull(candidate.payee, reason).joinToString("\n")))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setSilent(true)
+            .setAutoCancel(true)
             .build()
 
         try {

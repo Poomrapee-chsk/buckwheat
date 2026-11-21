@@ -1,0 +1,14 @@
+Slip OCR models
+
+rec.onnx, rec_charset.txt
+  AksonOCR-Lite Thai + English text-line recognizer (fine-tuned from PaddlePaddle PP-OCRv6_tiny_rec)
+  https://huggingface.co/Remtir/AksonOCR-Lite
+  Copyright 2026 Teetouch Jaknamon. Apache License 2.0.
+  rec_charset.txt is rec_charset.json from that repository, one class per line (line 1 = CTC blank).
+
+det.onnx
+  PaddlePaddle PP-OCRv5_mobile_det, official ONNX export, unmodified
+  https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx
+  Copyright (c) PaddlePaddle Authors. Apache License 2.0.
+
+Apache License 2.0: https://www.apache.org/licenses/LICENSE-2.0
