@@ -113,6 +113,7 @@ fun LangSwitcherDialog(onClose: () -> Unit) {
         Locale.forLanguageTag("sk-SK"),
         Locale.forLanguageTag("hr"),
         Locale.forLanguageTag("nl"),
+        Locale.forLanguageTag("th"),
     )
 
     Surface(Modifier.padding(top = localBottomSheetScrollState.topPadding)) {

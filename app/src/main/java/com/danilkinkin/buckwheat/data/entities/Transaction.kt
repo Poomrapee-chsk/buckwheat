@@ -25,6 +25,17 @@ data class Transaction(
 
     @ColumnInfo(name = "comment", defaultValue = "")
     val comment: String = "",
+
+    @ColumnInfo(defaultValue = "0")
+    val manualTreat: Boolean = false,
+
+    @ColumnInfo(defaultValue = "0")
+    val automaticTreat: Boolean = false,
+
+    // null = belongs to the current (live) budget period.
+    // Set to a Period.uid when the period is archived into history.
+    @ColumnInfo(name = "periodId")
+    val periodId: Int? = null,
 ) {
     @PrimaryKey(autoGenerate = true) var uid: Int = 0
 }

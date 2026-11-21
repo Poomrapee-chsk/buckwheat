@@ -29,6 +29,7 @@ import com.danilkinkin.buckwheat.editor.EditMode
 import com.danilkinkin.buckwheat.editor.EditStage
 import com.danilkinkin.buckwheat.editor.EditorViewModel
 import com.danilkinkin.buckwheat.editor.toolbar.restBudgetPill.RestBudgetPill
+import com.danilkinkin.buckwheat.history.PERIODS_HISTORY_SHEET
 import com.danilkinkin.buckwheat.settings.SETTINGS_SHEET
 import com.danilkinkin.buckwheat.util.observeLiveData
 import kotlinx.coroutines.launch
@@ -87,6 +88,14 @@ fun EditorToolbar(
         } else {
             RestBudgetPill()
         }
+        Spacer(modifier = Modifier.width(4.dp))
+        BigIconButton(
+            icon = painterResource(R.drawable.ic_clock),
+            contentDescription = null,
+            onClick = {
+                appViewModel.openSheet(PathState(PERIODS_HISTORY_SHEET))
+            },
+        )
         Spacer(modifier = Modifier.width(4.dp))
         BigIconButton(
             icon = painterResource(R.drawable.ic_settings),

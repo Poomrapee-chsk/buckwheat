@@ -21,8 +21,10 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.min
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.danilkinkin.buckwheat.LocalWindowInsets
+import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.R
 import com.danilkinkin.buckwheat.data.AppViewModel
 import com.danilkinkin.buckwheat.data.SpendsViewModel
@@ -52,6 +54,9 @@ fun History(
     appViewModel: AppViewModel = viewModel(),
     editorViewModel: EditorViewModel = viewModel(),
     readOnly: Boolean = false,
+    // When set, the list is built from this source (e.g. an archived period)
+    // instead of the current period's spends.
+    transactionsSource: LiveData<List<Transaction>>? = null,
     onClose: () -> Unit = {}
 ) {
     val scrollState = rememberLazyListState()
@@ -66,7 +71,7 @@ fun History(
     val tutorial by appViewModel.getTutorialStage(TUTORS.SWIPE_EDIT_SPENT).observeAsState(TUTORIAL_STAGE.NONE)
     var isUserTrySwipe by remember { mutableStateOf(false) }
 
-    observeLiveData(spendsViewModel.spends) { transactions ->
+    observeLiveData(transactionsSource ?: spendsViewModel.spends) { transactions ->
         val composedList = emptyList<RowEntity>().toMutableList()
         var lastSpentDate: LocalDate? = null
         var lastDayTotal: BigDecimal = BigDecimal.ZERO

@@ -4,8 +4,10 @@ import androidx.room.*
 import androidx.room.migration.AutoMigrationSpec
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.danilkinkin.buckwheat.data.dao.PeriodDao
 import com.danilkinkin.buckwheat.data.dao.StorageDao
 import com.danilkinkin.buckwheat.data.dao.TransactionDao
+import com.danilkinkin.buckwheat.data.entities.Period
 import com.danilkinkin.buckwheat.data.entities.Storage
 import com.danilkinkin.buckwheat.data.entities.Transaction
 
@@ -47,9 +49,35 @@ val AutoMigration4to5: Migration = object : Migration(4, 5) {
     }
 }
 
+// Add budget periods history:
+//  - new "periods" table
+//  - nullable "periodId" column on "transactions" (NULL = current live period)
+val AutoMigration5to6: Migration = object : Migration(5, 6) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE `transactions` ADD COLUMN `periodId` INTEGER")
+        database.execSQL(
+            "CREATE TABLE IF NOT EXISTS `periods` " +
+                    "(`budget` TEXT NOT NULL, " +
+                    "`startDate` INTEGER NOT NULL, " +
+                    "`finishDate` INTEGER NOT NULL, " +
+                    "`actualFinishDate` INTEGER, " +
+                    "`currency` TEXT NOT NULL DEFAULT '', " +
+                    "`archivedAt` INTEGER NOT NULL, " +
+                    "`uid` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL)"
+        )
+    }
+}
+
+val Migration6to7: Migration = object : Migration(6, 7) {
+    override fun migrate(database: SupportSQLiteDatabase) {
+        database.execSQL("ALTER TABLE transactions ADD COLUMN manualTreat INTEGER NOT NULL DEFAULT 0")
+        database.execSQL("ALTER TABLE transactions ADD COLUMN automaticTreat INTEGER NOT NULL DEFAULT 0")
+    }
+}
+
 @Database(
-    entities = [Transaction::class, Storage::class],
-    version = 5,
+    entities = [Transaction::class, Storage::class, Period::class],
+    version = 7,
     autoMigrations = [
         AutoMigration(from = 1, to = 2, spec = AutoMigration1to2::class),
         AutoMigration(from = 2, to = 3, spec = AutoMigration2to3::class),
@@ -64,7 +92,9 @@ abstract class DatabaseModule : RoomDatabase() {
 
     abstract fun storageDao(): StorageDao
 
+    abstract fun periodDao(): PeriodDao
+
     companion object {
-        val MANUAL_MIGRATIONS = arrayOf<Migration>(AutoMigration4to5)
+        val MANUAL_MIGRATIONS = arrayOf(AutoMigration4to5, AutoMigration5to6, Migration6to7)
     }
 }

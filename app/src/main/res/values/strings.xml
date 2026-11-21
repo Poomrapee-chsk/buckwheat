@@ -137,10 +137,21 @@
   <string name="send_crash_report">Send report</string>
   <string name="add_your_comment_to_report">Add your comment here if you wish. You can delete the block with information about the device if you think that this information does not matter</string>
   <string name="history_title">History</string>
+  <string name="periods_history_title">Budget history</string>
+  <string name="no_periods_history">No finished budgets yet</string>
+  <string name="period_overview_title">Budget overview</string>
+  <string name="period_deleted">Budget deleted</string>
   <string name="view_analytics">View analytics</string>
   <string name="analytics_title">Analytics</string>
   <string name="finish_early">Finish early</string>
   <string name="confirm_finish_budget_title">Finish budget</string>
   <string name="confirm_finish_budget_description">Your current budget will be completed, and you will no longer be able to make any further expenses</string>
   <string name="confirm_finish_budget">Finish budget</string>
+    <string name="treat_manual">Treat myself</string>
+    <string name="treat_month_count">Treats this month: %1$d</string>
+    <string name="treat_automatic">Lavish spending</string>
+    <string name="treat_popup_title">Treating yourself?</string>
+    <string name="treat_popup_message">This amount exceeds 1.5× your median purchase from the previous 30 days. Mark it as a treat?</string>
+    <string name="treat_popup_confirm">Mark as treat</string>
+    <string name="treat_popup_dismiss">Keep as regular</string>
 </resources>

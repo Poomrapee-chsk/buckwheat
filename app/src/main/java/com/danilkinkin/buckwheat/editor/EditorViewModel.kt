@@ -23,10 +23,12 @@ class EditorViewModel @Inject constructor(
     var editedTransaction: Transaction? = null
     var currentDate: Date = Date()
     var currentSpent: BigDecimal = BigDecimal.ZERO
+    val manualTreat = MutableLiveData(false)
     var currentComment = MutableLiveData("")
     var rawSpentValue = MutableLiveData("")
 
     fun startEditingSpent(transaction: Transaction) {
+        manualTreat.value = transaction.manualTreat
         editedTransaction = transaction
         currentSpent = transaction.value
         currentDate = transaction.date
@@ -51,6 +53,7 @@ class EditorViewModel @Inject constructor(
 
     fun resetEditingSpent() {
         currentSpent = BigDecimal.ZERO
+        manualTreat.value = false
         currentDate = Date()
         currentComment.value = ""
         rawSpentValue.value = ""

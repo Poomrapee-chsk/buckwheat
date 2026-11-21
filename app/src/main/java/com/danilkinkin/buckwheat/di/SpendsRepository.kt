@@ -2,19 +2,25 @@ package com.danilkinkin.buckwheat.di
 
 import android.content.Context
 import android.util.Log
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.room.withTransaction
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.asFlow
 import androidx.lifecycle.map
 import com.danilkinkin.buckwheat.budgetDataStore
+import com.danilkinkin.buckwheat.data.TreatEngine
+import java.util.Calendar
 import com.danilkinkin.buckwheat.data.RestedBudgetDistributionMethod
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.util.DAY
 import com.danilkinkin.buckwheat.data.ExtendCurrency
+import com.danilkinkin.buckwheat.data.dao.PeriodDao
 import com.danilkinkin.buckwheat.data.dao.TransactionDao
+import com.danilkinkin.buckwheat.data.entities.Period
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 import com.danilkinkin.buckwheat.errorForReport
 import com.danilkinkin.buckwheat.util.countDays
@@ -44,11 +50,151 @@ val finishPeriodActualDateStoreKey = longPreferencesKey("finishPeriodActualDate"
 
 class SpendsRepository @Inject constructor(
     @ApplicationContext val context: Context,
+    private val db: DatabaseModule,
     private val transactionDao: TransactionDao,
+    private val periodDao: PeriodDao,
     private val getCurrentDateUseCase: GetCurrentDateUseCase,
 ) {
+    fun getSpendingHistory() = transactionDao.getSpendingHistory()
+
     fun getAllTransactions(): LiveData<List<Transaction>> = transactionDao.getAll()
     fun getAllSpends(): LiveData<List<Transaction>> = transactionDao.getAll(TransactionType.SPENT)
+
+    fun getAllPeriods(): LiveData<List<Period>> = periodDao.getAll()
+
+    fun getPeriodTransactions(periodId: Int): LiveData<List<Transaction>> =
+        transactionDao.getAllByPeriod(periodId)
+
+    fun getPeriodSpends(periodId: Int): LiveData<List<Transaction>> =
+        transactionDao.getAllByPeriod(periodId, TransactionType.SPENT)
+
+    fun getPeriod(periodId: Int): Period? = periodDao.getById(periodId)
+
+    fun getPeriodTransactionsSync(periodId: Int): List<Transaction> =
+        transactionDao.getAllByPeriodSync(periodId)
+
+    /** Permanently remove an archived period from history, along with its transactions. */
+    suspend fun deletePeriod(periodId: Int) {
+        transactionDao.deleteByPeriod(periodId)
+        periodDao.deleteById(periodId)
+
+        Log.d("SpendsRepository", "Deleted archived period [id: $periodId]")
+    }
+
+    /**
+     * Re-insert a previously deleted period (with a fresh id) and re-attach the
+     * given transactions to it. Used to undo [deletePeriod].
+     */
+    suspend fun restorePeriod(period: Period, transactions: List<Transaction>) {
+        val newId = periodDao.insert(
+            Period(
+                budget = period.budget,
+                startDate = period.startDate,
+                finishDate = period.finishDate,
+                actualFinishDate = period.actualFinishDate,
+                currency = period.currency,
+                archivedAt = period.archivedAt,
+            )
+        ).toInt()
+
+        transactions.forEach { transaction ->
+            transactionDao.insert(
+                Transaction(
+                    type = transaction.type,
+                    value = transaction.value,
+                    date = transaction.date,
+                    comment = transaction.comment,
+                    periodId = newId,
+                    manualTreat = transaction.manualTreat,
+                    automaticTreat = transaction.automaticTreat,
+                )
+            )
+        }
+
+        Log.d(
+            "SpendsRepository",
+            "Restored period [id: $newId transactions: ${transactions.size}]"
+        )
+    }
+
+    /** Build a [Period] snapshot from the current datastore state, or null when there is no active budget. */
+    private fun periodSnapshotFrom(prefs: Preferences): Period? {
+        val budget = prefs[budgetStoreKey]?.toBigDecimalOrNull() ?: return null
+        val startDate = prefs[startPeriodDateStoreKey]?.let { Date(it) } ?: return null
+        val finishDate = prefs[finishPeriodDateStoreKey]?.let { Date(it) } ?: return null
+        val actualFinishDate = prefs[finishPeriodActualDateStoreKey]?.let { Date(it) }
+        val currency = prefs[currencyStoreKey] ?: ""
+
+        return Period(
+            budget = budget,
+            startDate = startDate,
+            finishDate = finishDate,
+            actualFinishDate = actualFinishDate,
+            currency = currency,
+            archivedAt = getCurrentDateUseCase(),
+        )
+    }
+
+    /** Wipe the datastore state describing the live period (archived history is kept). */
+    private suspend fun clearCurrentPeriodState() {
+        context.budgetDataStore.edit {
+            it.remove(budgetStoreKey)
+            it.remove(spentStoreKey)
+            it.remove(dailyBudgetStoreKey)
+            it.remove(spentFromDailyBudgetStoreKey)
+            it.remove(lastChangeDailyBudgetDateStoreKey)
+            it.remove(startPeriodDateStoreKey)
+            it.remove(finishPeriodDateStoreKey)
+            it.remove(finishPeriodActualDateStoreKey)
+        }
+    }
+
+    /**
+     * Archive the currently active budget period into history:
+     * insert a [Period] snapshot and stamp all of the current period's
+     * transactions (periodId IS NULL) with the new period id, atomically.
+     *
+     * No-op when there is no active budget (first run / after full reset) or
+     * when the current period has no transactions to keep.
+     */
+    suspend fun archiveCurrentPeriod() {
+        val period = periodSnapshotFrom(context.budgetDataStore.data.first()) ?: return
+
+        db.withTransaction {
+            if (transactionDao.getCurrentPeriodTransactions().isEmpty()) return@withTransaction
+
+            val periodId = periodDao.insert(period).toInt()
+            transactionDao.assignCurrentPeriodTo(periodId)
+
+            Log.d(
+                "SpendsRepository",
+                "Archived period [id: $periodId budget: ${period.budget}]"
+            )
+        }
+    }
+
+    /**
+     * One-time backfill for users upgrading to the history feature:
+     * if there is no archived period yet and the active period has already
+     * finished, snapshot it into history and clear the (now stale) live
+     * period state so the app cleanly asks for a new budget. A still-running
+     * period is left untouched — it will be archived when the next period starts.
+     */
+    suspend fun backfillFinishedPeriodIfNeeded() {
+        if (periodDao.count() > 0) return
+
+        val prefs = context.budgetDataStore.data.first()
+        if (prefs[budgetStoreKey] == null) return
+
+        val finishDate = prefs[finishPeriodDateStoreKey]?.let { Date(it) } ?: return
+        val actualFinishDate = prefs[finishPeriodActualDateStoreKey]?.let { Date(it) }
+
+        val finished = actualFinishDate != null || finishDate.time <= getCurrentDateUseCase().time
+        if (!finished) return
+
+        archiveCurrentPeriod()
+        clearCurrentPeriodState()
+    }
 
     fun getAllTags(): LiveData<List<String>> = transactionDao.getAll().map { transactions ->
         transactions
@@ -130,6 +276,29 @@ class SpendsRepository @Inject constructor(
     }
 
     suspend fun setBudget(newBudget: BigDecimal, newFinishDate: Date) {
+        // Snapshot the finishing period into history and seed the new period in a
+        // single DB transaction, so a crash can never leave the datastore pointing
+        // at a period whose transactions have all been archived away.
+        val archivingPeriod = periodSnapshotFrom(context.budgetDataStore.data.first())
+
+        db.withTransaction {
+            if (archivingPeriod != null && transactionDao.getCurrentPeriodTransactions().isNotEmpty()) {
+                val periodId = periodDao.insert(archivingPeriod).toInt()
+                transactionDao.assignCurrentPeriodTo(periodId)
+            }
+
+            // Drop anything left unarchived (e.g. an unused prior budget with no
+            // transactions), keeping archived history intact, then seed the new period.
+            transactionDao.deleteCurrentPeriod()
+            transactionDao.insert(
+                Transaction(
+                    TransactionType.INCOME,
+                    newBudget,
+                    getCurrentDateUseCase(),
+                )
+            )
+        }
+
         context.budgetDataStore.edit {
             it[budgetStoreKey] = newBudget.toString()
             it[spentStoreKey] = BigDecimal.ZERO.toString()
@@ -149,15 +318,6 @@ class SpendsRepository @Inject constructor(
                         + "]"
             )
         }
-
-        transactionDao.deleteAll()
-        transactionDao.insert(
-            Transaction(
-                TransactionType.INCOME,
-                newBudget,
-                getCurrentDateUseCase(),
-            )
-        )
 
         setDailyBudget(whatBudgetForDay())
 
@@ -181,9 +341,12 @@ class SpendsRepository @Inject constructor(
             )
         }
 
-        val incomeTransaction = transactionDao.getAll(TransactionType.INCOME).asFlow().first().first()
+        val incomeTransaction =
+            transactionDao.getAll(TransactionType.INCOME).asFlow().first().firstOrNull()
 
-        transactionDao.update(incomeTransaction.copy(value = newBudget))
+        if (incomeTransaction != null) {
+            transactionDao.update(incomeTransaction.copy(value = newBudget))
+        }
 
         updateDailyBudget(whatBudgetForDay())
     }
@@ -219,8 +382,11 @@ class SpendsRepository @Inject constructor(
         }
 
 
-        val setDailyBudgetTransaction = transactionDao.getAll(TransactionType.SET_DAILY_BUDGET).asFlow().first().last()
-        transactionDao.update(setDailyBudgetTransaction.copy(value = newDailyBudget))
+        val setDailyBudgetTransaction =
+            transactionDao.getAll(TransactionType.SET_DAILY_BUDGET).asFlow().first().lastOrNull()
+        if (setDailyBudgetTransaction != null) {
+            transactionDao.update(setDailyBudgetTransaction.copy(value = newDailyBudget))
+        }
     }
 
     suspend fun setDailyBudget(newDailyBudget: BigDecimal) {
@@ -430,6 +596,18 @@ class SpendsRepository @Inject constructor(
         )
 
         return nextDailyBudget
+    }
+
+    suspend fun exceedsTreatThreshold(amount: BigDecimal, date: Date, excludeId: Int): Boolean {
+        val currency = getCurrency().first().value ?: ""
+        return kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val start = Calendar.getInstance().apply {
+                time = date
+                add(Calendar.DAY_OF_YEAR, -30)
+            }.timeInMillis
+            val baseline = transactionDao.getTreatBaseline(start, date.time, excludeId, currency)
+            TreatEngine.isLavish(amount, baseline.map { it.value })
+        }
     }
 
     suspend fun addSpent(newTransaction: Transaction) {

@@ -6,6 +6,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
+import com.danilkinkin.buckwheat.data.entities.Period
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.di.SpendsRepository
 import com.danilkinkin.buckwheat.util.countDaysToToday
@@ -25,9 +26,11 @@ class SpendsViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val spendsRepository: SpendsRepository,
 ) : ViewModel() {
+    val spendingHistory = spendsRepository.getSpendingHistory()
     var tags = spendsRepository.getAllTags()
     var transactions = spendsRepository.getAllTransactions()
     var spends = spendsRepository.getAllSpends()
+    var periods: LiveData<List<Period>> = spendsRepository.getAllPeriods()
     var budget = spendsRepository.getBudget().asLiveData()
     var spent = spendsRepository.getSpent().asLiveData()
     var dailyBudget = spendsRepository.getDailyBudget().asLiveData()
@@ -50,6 +53,45 @@ class SpendsViewModel @Inject constructor(
     init {
         runChangeDayAction()
         runScheduledDetectChangeDayTask()
+
+        viewModelScope.launch {
+            spendsRepository.backfillFinishedPeriodIfNeeded()
+        }
+    }
+
+    fun getPeriodTransactions(periodId: Int): LiveData<List<Transaction>> =
+        spendsRepository.getPeriodTransactions(periodId)
+
+    fun getPeriodSpends(periodId: Int): LiveData<List<Transaction>> =
+        spendsRepository.getPeriodSpends(periodId)
+
+    fun getPeriod(periodId: Int): Period? = spendsRepository.getPeriod(periodId)
+
+    var lastRemovedPeriod: MutableLiveData<Period> = MutableLiveData()
+
+    // Period + its transactions captured together so an undo always restores a
+    // matching pair, even after several deletions in a row. Cleared once consumed.
+    private var lastRemovedPeriodSnapshot: Pair<Period, List<Transaction>>? = null
+
+    fun deletePeriod(periodId: Int) {
+        viewModelScope.launch {
+            val period = spendsRepository.getPeriod(periodId) ?: return@launch
+            val transactions = spendsRepository.getPeriodTransactionsSync(periodId)
+
+            spendsRepository.deletePeriod(periodId)
+
+            lastRemovedPeriodSnapshot = period to transactions
+            lastRemovedPeriod.value = period
+        }
+    }
+
+    fun undoRemovePeriod() {
+        viewModelScope.launch {
+            val (period, transactions) = lastRemovedPeriodSnapshot ?: return@launch
+            lastRemovedPeriodSnapshot = null
+
+            spendsRepository.restorePeriod(period, transactions)
+        }
     }
 
     // Budget handling
@@ -88,6 +130,9 @@ class SpendsViewModel @Inject constructor(
     }
 
     // Spend handling
+
+    suspend fun exceedsTreatThreshold(amount: BigDecimal, date: Date, excludeId: Int): Boolean =
+        spendsRepository.exceedsTreatThreshold(amount, date, excludeId)
 
     fun addSpent(transactionForAdd: Transaction) {
         viewModelScope.launch {

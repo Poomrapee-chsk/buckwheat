@@ -4,6 +4,10 @@ import android.util.Log
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
@@ -47,6 +51,47 @@ fun Keyboard(
     val coroutineScope = rememberCoroutineScope()
     val mode by editorViewModel.mode.observeAsState(EditMode.ADD)
     val currentRawSpent by editorViewModel.rawSpentValue.observeAsState("")
+    val manualTreat by editorViewModel.manualTreat.observeAsState(false)
+    var showTreatWarning by remember { mutableStateOf(false) }
+    var treatWarningDismissed by remember(mode, editorViewModel.editedTransaction) {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(currentRawSpent, editorViewModel.currentDate, manualTreat, mode) {
+        val amount = currentRawSpent.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+        val exceeds = spendsViewModel.exceedsTreatThreshold(
+            amount,
+            editorViewModel.currentDate,
+            editorViewModel.editedTransaction?.uid ?: 0,
+        )
+        if (!exceeds) treatWarningDismissed = false
+        showTreatWarning = exceeds && !manualTreat && !treatWarningDismissed
+    }
+
+    if (showTreatWarning) {
+        AlertDialog(
+            onDismissRequest = {
+                showTreatWarning = false
+                treatWarningDismissed = true
+            },
+            title = { Text(stringResource(R.string.treat_popup_title)) },
+            text = { Text(stringResource(R.string.treat_popup_message)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    editorViewModel.manualTreat.value = true
+                    showTreatWarning = false
+                    treatWarningDismissed = true
+                }) { Text(stringResource(R.string.treat_popup_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showTreatWarning = false
+                    treatWarningDismissed = true
+                }) { Text(stringResource(R.string.treat_popup_dismiss)) }
+            },
+        )
+    }
+
     var debugProgress by remember { mutableStateOf(0) }
     val dispatch = rememberAppKeyboardDispatcher { action, value ->
         var isMutate = true
@@ -300,6 +345,8 @@ fun Keyboard(
                                                 editorViewModel.editedTransaction!!.copy(
                                                     value = editorViewModel.currentSpent,
                                                     date = editorViewModel.currentDate,
+                                                    manualTreat = editorViewModel.manualTreat.value ?: false,
+                                                    automaticTreat = false,
                                                     comment = (editorViewModel.currentComment.value
                                                         ?: "").trim()
                                                 )
@@ -315,6 +362,8 @@ fun Keyboard(
                                                     type = TransactionType.SPENT,
                                                     value = editorViewModel.currentSpent,
                                                     date = Date(),
+                                                    manualTreat = editorViewModel.manualTreat.value ?: false,
+                                                    automaticTreat = false,
                                                     comment = (editorViewModel.currentComment.value
                                                         ?: "").trim()
                                                 )
