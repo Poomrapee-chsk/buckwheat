@@ -20,7 +20,7 @@ enum class SlipWarning {
     /** No date found, today is used */
     NO_DATE,
 
-    /** Before the start of the current budget period, can't be added */
+    /** Before the start of the current budget period: goes into a past period */
     OUTSIDE_PERIOD,
 
     /** Later than now, can't be added */
@@ -50,18 +50,46 @@ data class SlipCandidate(
     val amount: BigDecimal?
         get() = amountText.replace(",", "").trim().toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
 
-    /** Spends outside the current period would break the daily budget math */
+    /** Slips before the current period go into past periods; only future ones can't be added */
     val canBeAdded: Boolean
-        get() = SlipWarning.OUTSIDE_PERIOD !in warnings && SlipWarning.FUTURE !in warnings
+        get() = SlipWarning.FUTURE !in warnings
 
-    /** Safe to add without the user looking at it, e.g. from a notification */
-    val canBeAddedDirectly: Boolean
+    /** Goes into a past period, not the current budget */
+    val isPast: Boolean
+        get() = SlipWarning.OUTSIDE_PERIOD in warnings
+
+    /** Looks right: ticked in the review list */
+    val looksGood: Boolean
         get() = canBeAdded && amount != null && warnings.none {
             it == SlipWarning.DUPLICATE || it == SlipWarning.NO_DATE || it == SlipWarning.UNREADABLE
         }
 
+    /**
+     * Safe to add without the user looking at it, e.g. from a notification: also only into the
+     * current period, which never creates past periods behind the user's back
+     */
+    val canBeAddedDirectly: Boolean
+        get() = looksGood && !isPast
+
     fun toDetails() = SlipDetails(
         transactionUid = 0,
+        payee = payee,
+        reference = reference,
+        note = note,
+        rawText = rawText,
+        mediaId = mediaId,
+    )
+
+    fun toHistoryRow(pastPeriodBudget: BigDecimal?) = com.danilkinkin.buckwheat.wallet.HistoryRow(
+        date = java.time.LocalDateTime.ofInstant(date.toInstant(), java.time.ZoneId.systemDefault()),
+        amount = amount!!,
+        currency = "",
+        tag = tag.trim(),
+        manualTreat = false,
+        automaticTreat = false,
+        periodStart = null,
+        periodEnd = null,
+        periodBudget = pastPeriodBudget,
         payee = payee,
         reference = reference,
         note = note,
@@ -141,7 +169,7 @@ class SlipCandidateFactory(
             reference = slip.reference,
         )
 
-        return candidate.copy(selected = candidate.canBeAddedDirectly)
+        return candidate.copy(selected = candidate.looksGood)
     }
 
     /**

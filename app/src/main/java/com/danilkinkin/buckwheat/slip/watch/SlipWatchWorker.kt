@@ -102,7 +102,8 @@ class SlipWatchWorker(
                 when {
                     // Already added by hand: expected, no need to bother the user
                     SlipWarning.DUPLICATE in candidate.warnings -> Unit
-                    candidate.canBeAdded -> found += candidate
+                    // Notifications only add to the current period
+                    candidate.canBeAdded && !candidate.isPast -> found += candidate
                     // Before this period or in the future: say so instead of dropping it silently
                     else -> notAddable += candidate
                 }

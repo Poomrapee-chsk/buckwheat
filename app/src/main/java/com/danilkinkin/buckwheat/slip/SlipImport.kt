@@ -32,6 +32,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.AlertDialog
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.PaddingValues
@@ -104,6 +108,48 @@ fun SlipImport(
     }
 
     val selectedCount = slipImportViewModel.selectedCount
+    val coroutineScope = rememberCoroutineScope()
+    var showPastBudgetDialog by remember { mutableStateOf(false) }
+    var pastBudgetText by remember { mutableStateOf("") }
+    val addSlips = { pastBudget: java.math.BigDecimal? ->
+        slipImportViewModel.addSelected(pastBudget) { count ->
+            appViewModel.showSnackbar(
+                context.resources.getQuantityString(R.plurals.slip_import_added, count, count)
+            )
+            onClose()
+        }
+    }
+
+    if (showPastBudgetDialog) {
+        val pastCount = slipImportViewModel.selectedPastCount
+        val budget = pastBudgetText.replace(",", "").toBigDecimalOrNull()?.takeIf { it > java.math.BigDecimal.ZERO }
+        AlertDialog(
+            onDismissRequest = { showPastBudgetDialog = false },
+            title = { Text(stringResource(R.string.slip_past_budget_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(pluralStringResource(R.plurals.slip_past_budget_description, pastCount, pastCount))
+                    OutlinedTextField(
+                        value = pastBudgetText,
+                        onValueChange = { pastBudgetText = it },
+                        label = { Text(stringResource(R.string.slip_past_budget_label)) },
+                        singleLine = true,
+                        isError = budget == null,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = budget != null, onClick = {
+                    showPastBudgetDialog = false
+                    addSlips(budget)
+                }) { Text(stringResource(R.string.slip_past_budget_add)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPastBudgetDialog = false }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
 
     Surface(Modifier.padding(top = localBottomSheetScrollState.topPadding)) {
         Column {
@@ -237,13 +283,15 @@ fun SlipImport(
                                 .heightIn(min = 56.dp),
                             enabled = selectedCount > 0,
                             onClick = {
-                                slipImportViewModel.addSelected { count ->
-                                    appViewModel.showSnackbar(
-                                        context.resources.getQuantityString(
-                                            R.plurals.slip_import_added, count, count
-                                        )
-                                    )
-                                    onClose()
+                                if (slipImportViewModel.selectedPastCount > 0) {
+                                    // Ask the budget of past months that get created for old slips
+                                    coroutineScope.launch {
+                                        pastBudgetText = slipImportViewModel.currentBudget()
+                                            .stripTrailingZeros().toPlainString()
+                                        showPastBudgetDialog = true
+                                    }
+                                } else {
+                                    addSlips(null)
                                 }
                             },
                         ) {

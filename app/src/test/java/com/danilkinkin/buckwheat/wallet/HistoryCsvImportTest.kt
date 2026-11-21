@@ -121,6 +121,31 @@ class HistoryCsvImportTest {
     }
 
     @Test
+    fun oldSlipsGoIntoCoveringPeriodOrTheirMonthAroundExistingOnes() {
+        val existing = listOf(LocalDate.of(2025, 6, 15) to LocalDate.of(2025, 7, 14))
+        val plan = HistoryImportPlan.make(
+            rows = listOf(
+                row(LocalDateTime.of(2025, 6, 20, 9, 0), "40.00"),   // inside the existing period
+                row(LocalDateTime.of(2025, 6, 10, 9, 0), "28.00"),   // June, before it
+                row(LocalDateTime.of(2025, 7, 20, 9, 0), "15.00"),   // July, after it
+            ),
+            existing = emptySet(),
+            usedReferences = emptySet(),
+            currentStart = LocalDate.of(2026, 11, 1),
+            now = LocalDateTime.of(2026, 11, 22, 12, 0),
+            existingPeriods = existing,
+        )
+        assertEquals(
+            setOf(
+                LocalDate.of(2025, 6, 15) to LocalDate.of(2025, 7, 14),
+                LocalDate.of(2025, 6, 1) to LocalDate.of(2025, 6, 14),
+                LocalDate.of(2025, 7, 15) to LocalDate.of(2025, 7, 31),
+            ),
+            plan.toPast.keys,
+        )
+    }
+
+    @Test
     fun withoutBudgetEverythingIsPast() {
         val plan = HistoryImportPlan.make(
             rows = listOf(row(LocalDateTime.of(2026, 11, 10, 12, 0), "100.00")),

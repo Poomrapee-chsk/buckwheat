@@ -150,18 +150,27 @@ class SlipImportViewModel @Inject constructor(
     val selectedCount: Int
         get() = candidates.count { it.selected && it.canBeAdded && it.amount != null }
 
+    /** Selected slips dated before the current period, which go into past periods */
+    val selectedPastCount: Int
+        get() = candidates.count { it.selected && it.canBeAdded && it.amount != null && it.isPast }
+
+    /** Budget of the current period, suggested for past months created for old slips */
+    suspend fun currentBudget(): java.math.BigDecimal = spendsRepository.getBudget().first()
+
     /**
-     * Adds the selected slips as spends, oldest first, and remembers the chosen tags.
-     * Waiting slips that were shown here are cleared either way: the user has seen them.
+     * Adds the selected slips as spends, oldest first, and remembers the chosen tags. Slips of the
+     * current period go into its budget; older ones into the past period covering their day, or a new
+     * past period for their month with [pastPeriodBudget]. Waiting slips that were shown here are
+     * cleared either way: the user has seen them.
      */
-    fun addSelected(onDone: (count: Int) -> Unit) {
+    fun addSelected(pastPeriodBudget: java.math.BigDecimal? = null, onDone: (count: Int) -> Unit) {
         val toAdd = candidates
             .filter { it.selected && it.canBeAdded && it.amount != null }
             .sortedBy { it.date }
         val seenPending = shownPendingIds.toList()
 
         viewModelScope.launch {
-            toAdd.forEach { spendsRepository.addSpentFromSlip(it.toTransaction(), it.toDetails()) }
+            val result = spendsRepository.importHistory(toAdd.map { it.toHistoryRow(pastPeriodBudget) })
 
             tagMemory.remember(
                 toAdd
@@ -174,7 +183,7 @@ class SlipImportViewModel @Inject constructor(
             shownPendingIds.clear()
 
             candidates.clear()
-            onDone(toAdd.size)
+            onDone(result.added)
         }
     }
 

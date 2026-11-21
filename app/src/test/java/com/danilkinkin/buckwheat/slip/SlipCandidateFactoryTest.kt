@@ -71,13 +71,20 @@ class SlipCandidateFactoryTest {
     }
 
     @Test
-    fun beforePeriodCantBeAdded() {
-        // Make slip is from 27 Oct
+    fun beforePeriodGoesToPastPeriodButNotFromNotifications() {
+        // Make slip is from 27 Oct, the period starts on 1 Nov
         val candidate = factory().build(0, fixture("make_real_itcity"))
 
         assertTrue(SlipWarning.OUTSIDE_PERIOD in candidate.warnings)
-        assertFalse(candidate.canBeAdded)
-        assertFalse(candidate.selected)
+        assertTrue(candidate.isPast)
+        assertTrue(candidate.canBeAdded)
+        assertTrue(candidate.selected)
+        assertFalse(candidate.canBeAddedDirectly)
+
+        val row = candidate.toHistoryRow(BigDecimal("5000"))
+        assertEquals(BigDecimal("5000"), row.periodBudget)
+        assertEquals(null, row.periodStart)
+        assertEquals("IT CITY PUBLIC", row.payee)
     }
 
     @Test
