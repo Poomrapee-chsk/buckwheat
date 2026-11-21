@@ -33,6 +33,8 @@ import com.danilkinkin.buckwheat.onboarding.Onboarding
 import com.danilkinkin.buckwheat.recalcBudget.RECALCULATE_DAILY_BUDGET_SHEET
 import com.danilkinkin.buckwheat.recalcBudget.RecalcBudget
 import com.danilkinkin.buckwheat.settings.*
+import com.danilkinkin.buckwheat.slip.SLIP_IMPORT_SHEET
+import com.danilkinkin.buckwheat.slip.SlipImport
 import com.danilkinkin.buckwheat.wallet.*
 import kotlinx.coroutines.launch
 import java.util.*
@@ -153,6 +155,7 @@ fun BottomSheets(
 
     BottomSheetWrapper(name = PERIODS_HISTORY_SHEET) { state ->
         PeriodsHistory(
+            activityResultRegistryOwner = activityResultRegistryOwner,
             onClose = {
                 coroutineScope.launch { state.hide() }
             }
@@ -165,6 +168,15 @@ fun BottomSheets(
             onClose = {
                 coroutineScope.launch { state.hide() }
             }
+        )
+    }
+
+    BottomSheetWrapper(name = SLIP_IMPORT_SHEET) { state ->
+        SlipImport(
+            activityResultRegistryOwner = activityResultRegistryOwner,
+            onClose = {
+                coroutineScope.launch { state.hide() }
+            },
         )
     }
 

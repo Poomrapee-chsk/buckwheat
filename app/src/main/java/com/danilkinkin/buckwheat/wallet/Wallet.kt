@@ -31,6 +31,7 @@ import com.danilkinkin.buckwheat.data.RestedBudgetDistributionMethod
 import com.danilkinkin.buckwheat.data.SpendsViewModel
 import com.danilkinkin.buckwheat.di.TUTORS
 import com.danilkinkin.buckwheat.analytics.ANALYTICS_SHEET
+import com.danilkinkin.buckwheat.slip.SLIP_IMPORT_SHEET
 import com.danilkinkin.buckwheat.ui.BuckwheatTheme
 import com.danilkinkin.buckwheat.util.*
 import java.math.BigDecimal
@@ -257,6 +258,14 @@ fun Wallet(
                             )
                         }
 
+                        ButtonRow(
+                            icon = painterResource(R.drawable.ic_add),
+                            text = stringResource(R.string.slip_import_title),
+                            onClick = {
+                                appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
+                            }
+                        )
+
                         val exportCSVLaunch = rememberExportCSV(
                             activityResultRegistryOwner = activityResultRegistryOwner
                         )
@@ -265,6 +274,17 @@ fun Wallet(
                             icon = painterResource(R.drawable.ic_file_download),
                             text = stringResource(R.string.export_to_csv),
                             onClick = { exportCSVLaunch() }
+                        )
+
+                        val exportAllCSVLaunch = rememberExportAllCSV(
+                            activityResultRegistryOwner = activityResultRegistryOwner
+                        )
+
+                        ButtonRow(
+                            icon = painterResource(R.drawable.ic_file_download),
+                            text = stringResource(R.string.export_all_to_csv),
+                            description = stringResource(R.string.export_all_to_csv_description),
+                            onClick = { exportAllCSVLaunch() }
                         )
 
                         CompositionLocalProvider(

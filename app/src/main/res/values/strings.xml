@@ -154,4 +154,28 @@
     <string name="treat_popup_message">This amount exceeds 1.5× your median purchase from the previous 30 days. Mark it as a treat?</string>
     <string name="treat_popup_confirm">Mark as treat</string>
     <string name="treat_popup_dismiss">Keep as regular</string>
+  <string name="slip_import_title">Import slips</string>
+  <string name="slip_import_description">Pick screenshots of bank transfer slips. They are read on your phone, nothing is uploaded. Check each spend before adding it.</string>
+  <string name="slip_import_choose">Choose slip images</string>
+  <string name="slip_import_choose_more">Choose more</string>
+  <string name="slip_import_reading">Reading slips %1$d of %2$d…</string>
+  <string name="slip_import_amount">Amount</string>
+  <string name="slip_import_tag">Tag</string>
+  <plurals name="slip_import_add">
+    <item quantity="one">Add %d spend</item>
+    <item quantity="other">Add %d spends</item>
+  </plurals>
+  <plurals name="slip_import_added">
+    <item quantity="one">Added %d spend</item>
+    <item quantity="other">Added %d spends</item>
+  </plurals>
+  <string name="slip_warning_unreadable">Couldn\'t read this image</string>
+  <string name="slip_warning_no_amount">Amount not found, enter it</string>
+  <string name="slip_warning_no_date">Date not found, today is used</string>
+  <string name="slip_warning_outside_period">Before the current budget period, can\'t be added</string>
+  <string name="slip_warning_future">Date is in the future, can\'t be added</string>
+  <string name="slip_warning_duplicate">Looks like a spend you already have</string>
+  <string name="export_all_to_csv">Export all history to CSV</string>
+  <string name="export_all_to_csv_description">Every spend from every period, also past ones</string>
+  <string name="export_all_to_csv_file_name">Buckwheat history %1$s</string>
 </resources>
