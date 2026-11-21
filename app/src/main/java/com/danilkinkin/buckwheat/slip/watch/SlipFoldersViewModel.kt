@@ -27,6 +27,10 @@ class SlipFoldersViewModel @Inject constructor(
     var hasAccess by mutableStateOf(SlipMedia.hasAccess(context))
         private set
 
+    /** Folders just chosen: ask whether to import the slips already saved in them */
+    var askImportPast by mutableStateOf<List<SlipFolder>>(emptyList())
+        private set
+
     val watchEnabled = settings.enabled.asLiveData()
     val watchedFolders = settings.folders.asLiveData()
     val periodStart = spendsRepository.getStartPeriodDate().asLiveData()
@@ -40,7 +44,9 @@ class SlipFoldersViewModel @Inject constructor(
             // First time: preselect folders that look like bank apps
             val watched = settings.folders.first()
             if (watched.isEmpty() && found.any { it.suggested }) {
-                settings.setFolders(found.filter { it.suggested }.map { WatchedFolder(it.bucketId, it.name) })
+                val suggested = found.filter { it.suggested }
+                settings.setFolders(suggested.map { WatchedFolder(it.bucketId, it.name) })
+                askImportPast = suggested
             }
         }
     }
@@ -50,6 +56,11 @@ class SlipFoldersViewModel @Inject constructor(
             val current = settings.folders.first().filter { it.bucketId != folder.bucketId }
             settings.setFolders(if (watched) current + WatchedFolder(folder.bucketId, folder.name) else current)
         }
+        if (watched) askImportPast = listOf(folder)
+    }
+
+    fun answeredImportPast() {
+        askImportPast = emptyList()
     }
 
     fun setWatchEnabled(enabled: Boolean) {

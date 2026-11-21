@@ -269,23 +269,24 @@ fun Wallet(
                         val exportCSVLaunch = rememberExportCSV(
                             activityResultRegistryOwner = activityResultRegistryOwner
                         )
+                        val exportAllCSVLaunch = rememberExportAllCSV(
+                            activityResultRegistryOwner = activityResultRegistryOwner
+                        )
+                        var showExportChooser by remember { mutableStateOf(false) }
 
                         ButtonRow(
                             icon = painterResource(R.drawable.ic_file_download),
                             text = stringResource(R.string.export_to_csv),
-                            onClick = { exportCSVLaunch() }
+                            onClick = { showExportChooser = true }
                         )
 
-                        val exportAllCSVLaunch = rememberExportAllCSV(
-                            activityResultRegistryOwner = activityResultRegistryOwner
-                        )
-
-                        ButtonRow(
-                            icon = painterResource(R.drawable.ic_file_download),
-                            text = stringResource(R.string.export_all_to_csv),
-                            description = stringResource(R.string.export_all_to_csv_description),
-                            onClick = { exportAllCSVLaunch() }
-                        )
+                        if (showExportChooser) {
+                            ExportChooserDialog(
+                                onCurrentPeriod = { exportCSVLaunch() },
+                                onAllPeriods = { exportAllCSVLaunch() },
+                                onClose = { showExportChooser = false },
+                            )
+                        }
 
                         CompositionLocalProvider(
                             LocalContentColor provides MaterialTheme.colorScheme.error
