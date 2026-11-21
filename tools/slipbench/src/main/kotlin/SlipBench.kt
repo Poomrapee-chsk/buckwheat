@@ -38,6 +38,9 @@ Options:
   --threads N      CPU threads per model (default 1, closest to a phone's single big core)
   --limit N        only the first N images
   --setups LIST    comma-separated setup ids to run (default: all), e.g. current,iapp
+  --file-dates     use each image's file time as its save time, like the app uses the
+                   phone's photo library date (helps when OCR loses the day).
+                   Copy with `adb pull -a` so the files keep their times.
 """
 
 /** iApp OpenThai2.1-OCR-Text, pinned to a release; files checked by SHA-256 */
@@ -77,6 +80,7 @@ fun main(args: Array<String>) {
     var threads = 1
     var limit = Int.MAX_VALUE
     var only: Set<String>? = null
+    var fileDates = false
 
     var i = 0
     while (i < args.size) {
@@ -86,6 +90,7 @@ fun main(args: Array<String>) {
             "--threads" -> threads = args[++i].toInt()
             "--limit" -> limit = args[++i].toInt()
             "--setups" -> only = args[++i].split(',').map { it.trim() }.toSet()
+            "--file-dates" -> fileDates = true
             "-h", "--help" -> { println(USAGE); return }
             else -> inputs += File(a)
         }
@@ -110,6 +115,7 @@ fun main(args: Array<String>) {
     out.mkdirs()
 
     println("${images.size} images, setups: ${setups.joinToString { it.id }}, $threads thread(s) per model")
+    if (fileDates) println("Using file times as image dates")
     if (truth.isNotEmpty()) println("Right answers for ${truth.size} images from $truthFile")
 
     val engines = setups.associateWith { s ->
@@ -128,11 +134,19 @@ fun main(args: Array<String>) {
         if (image == null) {
             unreadable++
         } else {
+            val imageDate = if (fileDates) {
+                LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(file.lastModified()), java.time.ZoneId.systemDefault())
+            } else {
+                null
+            }
             results[file] = setups.associateWith { setup ->
                 val engine = engines.getValue(setup)
                 val lines = engine.recognize(image)
                 val text = SlipLayout.toText(lines, image.width)
-                Reading(engine.lastDetectMs, engine.lastRecognizeMs, text, SlipParser.parse(text), SlipParser.looksLikeSlip(text))
+                Reading(
+                    engine.lastDetectMs, engine.lastRecognizeMs, text,
+                    SlipParser.parse(text, imageDate), SlipParser.looksLikeSlip(text, imageDate),
+                )
             }
         }
         if ((index + 1) % 10 == 0 || index == images.lastIndex) {
@@ -143,7 +157,7 @@ fun main(args: Array<String>) {
     }
     engines.values.forEach { it.close() }
 
-    val summary = summary(results, setups, truth, unreadable, threads)
+    val summary = summary(results, setups, truth, unreadable, threads, fileDates)
     File(out, "summary.txt").writeText(summary)
     writeCsv(File(out, "results.csv"), results)
     writeReport(File(out, "report.html"), results, setups, truth)
@@ -305,6 +319,7 @@ private fun summary(
     truth: Map<String, Truth>,
     unreadable: Int,
     threads: Int,
+    fileDates: Boolean,
 ): String = buildString {
     val n = results.size
     val anySlip = results.values.count { r -> r.values.any { it.looksLikeSlip } }
@@ -312,6 +327,7 @@ private fun summary(
     appendLine("=================")
     appendLine("Images read: $n${if (unreadable > 0) " ($unreadable couldn't be opened)" else ""}")
     appendLine("Recognized as a slip by at least one setup: $anySlip")
+    appendLine("File times used as image dates: ${if (fileDates) "yes" else "no"}")
     appendLine("Threads per model: $threads, CPU: ${System.getProperty("os.arch")}, ${Runtime.getRuntime().availableProcessors()} cores, ${System.getProperty("os.name")}")
     appendLine()
     setups.forEach { appendLine("  ${it.id.padEnd(8)} ${it.description}") }

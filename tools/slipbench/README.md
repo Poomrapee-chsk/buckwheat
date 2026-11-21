@@ -23,6 +23,12 @@ Needs JDK 17, like the app build. From the repository root:
 ./gradlew :slipbench:run --args="/path/to/slips --truth answers.csv --out results"
 ```
 
+Copying slips from the phone, keeping their file times (for `--file-dates`):
+
+```sh
+adb pull -a "/sdcard/Pictures/K PLUS" ../slips
+```
+
 Folders are searched recursively for `.jpg`, `.jpeg`, `.png`, `.bmp` and `.gif`.
 
 | option | |
@@ -32,6 +38,7 @@ Folders are searched recursively for `.jpg`, `.jpeg`, `.png`, `.bmp` and `.gif`.
 | `--threads N` | CPU threads per model (default 1, closest to one phone core) |
 | `--limit N` | only the first N images, e.g. for a quick try |
 | `--setups LIST` | only some setups, e.g. `current,iapp` |
+| `--file-dates` | use each file's modified time as the image's save time, like the app uses the photo library's date. It fills in a day that OCR lost. Copy slips with `adb pull -a` so they keep their times |
 
 Each image is read by every setup, so expect roughly 2–4 seconds per image on a laptop. The progress line
 shows the time left.

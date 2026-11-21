@@ -93,8 +93,10 @@ class SlipCandidateFactory(
         others: List<SlipCandidate> = emptyList(),
         mediaId: Long? = null,
         error: String? = null,
+        /** When the image was saved, helps with a day that OCR lost, see [SlipParser.parse] */
+        imageDate: java.time.LocalDateTime? = null,
     ): SlipCandidate {
-        val slip = SlipParser.parse(text)
+        val slip = SlipParser.parse(text, imageDate)
         val date = slip.dateTime?.toDate() ?: now
         val warnings = mutableSetOf<SlipWarning>()
 

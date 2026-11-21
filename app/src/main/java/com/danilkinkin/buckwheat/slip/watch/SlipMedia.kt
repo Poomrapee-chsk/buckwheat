@@ -78,6 +78,30 @@ object SlipMedia {
             .sortedByDescending { it.suggested }
     }
 
+    /**
+     * When an image was taken or saved, from the photo library. Bank apps save a slip at payment time,
+     * so it fills in a day that OCR lost. Null when the image's source doesn't say.
+     */
+    fun imageDate(context: Context, uri: Uri): java.time.LocalDateTime? {
+        val toLocal = { millis: Long ->
+            java.time.LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(millis), java.time.ZoneId.systemDefault())
+        }
+        // Picker URIs only have some columns: ask for each separately
+        listOf(MediaStore.MediaColumns.DATE_TAKEN to 1L, MediaStore.MediaColumns.DATE_ADDED to 1000L).forEach { (column, scale) ->
+            try {
+                context.contentResolver.query(uri, arrayOf(column), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst() && !cursor.isNull(0)) {
+                        val value = cursor.getLong(0)
+                        if (value > 0) return toLocal(value * scale)
+                    }
+                }
+            } catch (e: Exception) {
+                // Column not supported by this URI
+            }
+        }
+        return null
+    }
+
     /** Images in [bucketIds] added after [addedAfterSeconds], oldest first */
     fun queryImages(context: Context, bucketIds: Collection<Long>, addedAfterSeconds: Long): List<SlipImage> {
         if (bucketIds.isEmpty() || !hasAccess(context)) return emptyList()

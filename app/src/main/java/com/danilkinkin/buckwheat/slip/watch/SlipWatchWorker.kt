@@ -92,10 +92,13 @@ class SlipWatchWorker(
                     Log.w(TAG, "Can't read ${image.uri}", e)
                     ""
                 }
+                val imageDate = java.time.LocalDateTime.ofInstant(
+                    java.time.Instant.ofEpochSecond(image.dateAdded), java.time.ZoneId.systemDefault(),
+                )
                 // Other screenshots and photos in the folder are skipped silently
-                if (!SlipParser.looksLikeSlip(text)) return@forEach
+                if (!SlipParser.looksLikeSlip(text, imageDate)) return@forEach
 
-                val candidate = factory.build(found.size, text, found, image.mediaId)
+                val candidate = factory.build(found.size, text, found, image.mediaId, imageDate = imageDate)
                 when {
                     // Already added by hand: expected, no need to bother the user
                     SlipWarning.DUPLICATE in candidate.warnings -> Unit

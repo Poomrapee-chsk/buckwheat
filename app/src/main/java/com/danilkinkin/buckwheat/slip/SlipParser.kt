@@ -60,23 +60,37 @@ object SlipParser {
     private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d{1,2})?(?![\d,])""")
     private val CURRENCY = Regex("""บาท|thb|฿""", RegexOption.IGNORE_CASE)
     private val TEXT_DATE = Regex(
+        // Day may have an "O" read for zero before a Thai month: "1Oม.ย."; a stray mark may sit
+        // between day and month: "22.ม.ย.", "2☐ม.ย." (a stray Thai letter is handled in [month]).
         // Month may start with a zero read for "O": "27 0ct 2026"
-        """(?<!\d)(\d{1,2})\s*([ก-๛A-Za-z0][ก-๛A-Za-z.\s]{1,14}?)\s*(\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d))?"""
+        """(?<!\d)(\d(?:\d|[Oo](?=\s*[ก-๛]))?)\s*(?:[^\s\dก-๛A-Za-z]\s*)?([ก-๛A-Za-z0][ก-๛A-Za-z.\s]{1,14}?)\s*(\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d))?"""
     )
+
+    /** Month, year and time with the day lost by OCR: "ม.ย. 68 12:18 น." */
+    private val DATE_WITHOUT_DAY = Regex(
+        """(?<![\dก-๛A-Za-z])([ก-๛A-Za-z][ก-๛A-Za-z.]{1,12})\s*(\d{4}|\d{2})(?!\d)\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d)"""
+    )
+
+    /** How far apart a slip's time and its image's time may be to trust the image's day */
+    private const val IMAGE_TIME_TOLERANCE_MINUTES = 15L
     private val NUMERIC_DATE = Regex(
         """(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*:\s*(\d{2})(?!\d))?"""
     )
     // Masked account or PromptPay number: "xxx-x-x1234-x", "XXX-xxx-5678", "123-4-56789-0"
     private val ACCOUNT_LIKE = Regex("""(?:[xX*]{2,}|\d{3,})-[xX*\d]""")
 
-    fun parse(rawText: String): SlipData {
+    /**
+     * @param imageDate when the slip image was saved (MediaStore date): bank apps save the slip at
+     *   payment time, so it fills in or corrects a day that OCR lost or misread, see [reconcileDate]
+     */
+    fun parse(rawText: String, imageDate: LocalDateTime? = null): SlipData {
         // Empty lines mark large gaps between blocks, only used to find the payee
         val withGaps = rawText.lines().map { normalize(it) }
         val lines = withGaps.filter { it.isNotBlank() }
 
         return SlipData(
             amount = findAmount(lines),
-            dateTime = findDateTime(lines),
+            dateTime = reconcileDate(findDateTime(lines), findDateWithoutDay(lines), imageDate),
             // A payee is a name: "RE" under a blurred "MERCHANT NO" line is not
             payee = findLabeledValue(lines, PAYEE_LABELS)
                 ?.takeIf { value -> value.count { isWordChar(it) } >= 3 }
@@ -97,8 +111,8 @@ object SlipParser {
      * Whether OCR text is a payment slip and not any other screenshot or photo in the folder:
      * it needs an amount, a date and at least one word typical for slips.
      */
-    fun looksLikeSlip(rawText: String): Boolean {
-        val slip = parse(rawText)
+    fun looksLikeSlip(rawText: String, imageDate: LocalDateTime? = null): Boolean {
+        val slip = parse(rawText, imageDate)
         if (slip.amount == null || slip.dateTime == null) return false
 
         val text = normalize(rawText)
@@ -201,8 +215,12 @@ object SlipParser {
 
     // ---- amount ----
 
-    private fun parseNumber(match: MatchResult): BigDecimal? =
-        (match.groupValues[1].replace(",", "") + match.groupValues[2]).toBigDecimalOrNull()
+    private fun parseNumber(match: MatchResult): BigDecimal? {
+        val whole = match.groupValues[1]
+        // "00.00" is "100.00" with its first digit lost: better no amount than a wrong one
+        if (whole.length > 1 && whole.startsWith("0")) return null
+        return (whole.replace(",", "") + match.groupValues[2]).toBigDecimalOrNull()
+    }
 
     private fun amountsIn(text: String): List<Pair<BigDecimal, Boolean>> =
         NUMBER.findAll(text).mapNotNull { match ->
@@ -276,13 +294,18 @@ object SlipParser {
             null
         }
 
+    /** Thai month, also with one stray letter read before it: "าม.ย.", "กม.ย." */
+    private fun thaiMonthLenient(token: String): Int? =
+        thaiMonth(token) ?: token.trim().takeIf { it.length >= 3 && it[0] in 'ก'..'๛' }?.let { thaiMonth(it.drop(1)) }
+
     private fun findDateTime(lines: List<String>): LocalDateTime? {
         for (line in lines) {
             for (match in TEXT_DATE.findAll(line)) {
                 val (day, monthToken, year, hour, minute) = match.destructured
-                val thai = thaiMonth(monthToken)
+                val thai = thaiMonthLenient(monthToken)
                 val month = thai ?: englishMonth(monthToken) ?: continue
-                buildDate(toYear(year, thai != null), month, day.toInt(), hour, minute)
+                val dayNumber = day.replace('O', '0').replace('o', '0').toInt()
+                buildDate(toYear(year, thai != null), month, dayNumber, hour, minute)
                     ?.let { return it }
             }
         }
@@ -294,6 +317,53 @@ object SlipParser {
                 buildDate(toYear(year, thaiYear), month.toInt(), day.toInt(), hour, minute)
                     ?.let { return it }
             }
+        }
+        return null
+    }
+
+    private class DateWithoutDay(val year: Int, val month: Int, val hour: Int, val minute: Int)
+
+    private fun findDateWithoutDay(lines: List<String>): DateWithoutDay? {
+        for (line in lines) {
+            for (match in DATE_WITHOUT_DAY.findAll(line)) {
+                val (monthToken, year, hour, minute) = match.destructured
+                val thai = thaiMonthLenient(monthToken)
+                val month = thai ?: englishMonth(monthToken) ?: continue
+                val h = hour.toInt().takeIf { it in 0..23 } ?: continue
+                val m = minute.toInt().takeIf { it in 0..59 } ?: continue
+                return DateWithoutDay(toYear(year, thai != null), month, h, m)
+            }
+        }
+        return null
+    }
+
+    private fun minutesApart(aHour: Int, aMinute: Int, b: LocalDateTime): Long =
+        kotlin.math.abs((aHour * 60L + aMinute) - (b.hour * 60L + b.minute))
+
+    /**
+     * OCR often loses or garbles the day next to a Thai month ("มิ.ย." with its vowel lost):
+     * the day is missing, or a digit dropped ("2" for "24"). Bank apps save the slip image at payment
+     * time, so when the slip's month and year match the image's and its time is within
+     * [IMAGE_TIME_TOLERANCE_MINUTES] of the image's, the image's day is used.
+     */
+    private fun reconcileDate(found: LocalDateTime?, withoutDay: DateWithoutDay?, imageDate: LocalDateTime?): LocalDateTime? {
+        if (imageDate == null) return found
+
+        if (found != null) {
+            val sameMonth = found.year == imageDate.year && found.monthValue == imageDate.monthValue
+            if (sameMonth && found.dayOfMonth != imageDate.dayOfMonth &&
+                minutesApart(found.hour, found.minute, imageDate) <= IMAGE_TIME_TOLERANCE_MINUTES
+            ) {
+                return found.withDayOfMonth(imageDate.dayOfMonth)
+            }
+            return found
+        }
+
+        val partial = withoutDay ?: return null
+        if (partial.year == imageDate.year && partial.month == imageDate.monthValue &&
+            minutesApart(partial.hour, partial.minute, imageDate) <= IMAGE_TIME_TOLERANCE_MINUTES
+        ) {
+            return LocalDateTime.of(partial.year, partial.month, imageDate.dayOfMonth, partial.hour, partial.minute)
         }
         return null
     }
