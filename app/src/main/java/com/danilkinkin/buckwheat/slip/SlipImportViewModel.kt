@@ -62,13 +62,40 @@ class SlipImportViewModel @Inject constructor(
         if (isReading) return
         isReading = true
 
-        viewModelScope.launch {
-            val images = withContext(Dispatchers.IO) {
-                SlipMedia.queryImages(context, bucketIds, from.time / 1000 - 1)
+        readJob = viewModelScope.launch {
+            val images = try {
+                withContext(Dispatchers.IO) {
+                    SlipMedia.queryImages(context, bucketIds, from.time / 1000 - 1)
+                }
+            } finally {
+                isReading = false
             }
-            isReading = false
             read(images.map { Source(it.uri, it.mediaId) }, onlySlips = true)
         }
+    }
+
+    private var readJob: kotlinx.coroutines.Job? = null
+
+    /** Stops reading; slips read so far stay in the list */
+    fun stopReading() {
+        readJob?.cancel()
+    }
+
+    /** Removes a slip from the list; one found in a watched folder isn't offered again */
+    fun discard(candidate: SlipCandidate) {
+        candidates.removeAll { it.id == candidate.id }
+        candidate.mediaId?.takeIf { it in shownPendingIds }?.let { mediaId ->
+            shownPendingIds -= mediaId
+            viewModelScope.launch {
+                watchSettings.removePending(listOf(mediaId))
+                SlipNotifications.cancel(context, mediaId)
+            }
+        }
+    }
+
+    /** Removes every slip that isn't ticked */
+    fun discardUnselected() {
+        candidates.filter { !(it.selected && it.canBeAdded && it.amount != null) }.forEach { discard(it) }
     }
 
     private fun read(sources: List<Source>, onlySlips: Boolean) {
@@ -80,7 +107,7 @@ class SlipImportViewModel @Inject constructor(
         skippedCount = 0
         ocrError = null
 
-        viewModelScope.launch {
+        readJob = viewModelScope.launch {
             try {
                 val factory = SlipCandidateFactory.load(spendsRepository, tagMemory)
                 val known = candidates.mapNotNull { it.mediaId }.toSet()
@@ -170,7 +197,8 @@ class SlipImportViewModel @Inject constructor(
         val seenPending = shownPendingIds.toList()
 
         viewModelScope.launch {
-            val result = spendsRepository.importHistory(toAdd.map { it.toHistoryRow(pastPeriodBudget) })
+            val defaultTag = context.getString(com.danilkinkin.buckwheat.R.string.slip_default_tag)
+            val result = spendsRepository.importHistory(toAdd.map { it.toHistoryRow(pastPeriodBudget, defaultTag) })
 
             tagMemory.remember(
                 toAdd

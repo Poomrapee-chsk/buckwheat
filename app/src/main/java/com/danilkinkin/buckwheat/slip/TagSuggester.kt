@@ -7,7 +7,8 @@ package com.danilkinkin.buckwheat.slip
  * 2. An existing tag equal to the slip's note
  * 3. An existing tag contained in the note or payee (or the other way round)
  * 4. An existing tag similar to the note or payee (character bigrams, survives OCR typos)
- * 5. Otherwise the note itself, so nothing typed on the slip is lost
+ * 5. Otherwise nothing: the spend gets the default tag ("Other") when it's added. The note is kept
+ *    as the slip's note, not used as a tag
  */
 object TagSuggester {
     private const val MIN_SIMILARITY = 0.6
@@ -48,7 +49,7 @@ object TagSuggester {
             .firstOrNull()
             ?.let { return it.first }
 
-        return cleanNote
+        return ""
     }
 
     /** Payee name in a form that is stable between slips: no spaces, punctuation, letter case. */
