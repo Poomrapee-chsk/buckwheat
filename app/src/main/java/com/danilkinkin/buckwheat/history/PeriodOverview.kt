@@ -30,10 +30,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.danilkinkin.buckwheat.LocalWindowInsets
 import com.danilkinkin.buckwheat.R
 import com.danilkinkin.buckwheat.analytics.MinMaxSpentCard
+import com.danilkinkin.buckwheat.analytics.SpendsCalendar
 import com.danilkinkin.buckwheat.analytics.SpendsCountCard
 import com.danilkinkin.buckwheat.analytics.StatCard
 import com.danilkinkin.buckwheat.analytics.WholeBudgetCard
@@ -41,6 +43,7 @@ import com.danilkinkin.buckwheat.analytics.categoriesChart.CategoriesChartCard
 import com.danilkinkin.buckwheat.base.LocalBottomSheetScrollState
 import com.danilkinkin.buckwheat.data.ExtendCurrency
 import com.danilkinkin.buckwheat.data.SpendsViewModel
+import com.danilkinkin.buckwheat.data.entities.TransactionType
 import com.danilkinkin.buckwheat.util.numberFormat
 import java.math.BigDecimal
 
@@ -60,6 +63,15 @@ fun PeriodOverview(
 
     val spendsSource = remember(periodId) { spendsViewModel.getPeriodSpends(periodId) }
     val spends by spendsSource.observeAsState(emptyList())
+
+    // The calendar also needs INCOME & SET_DAILY_BUDGET records, not only spends
+    val transactionsSource = remember(periodId) { spendsViewModel.getPeriodTransactions(periodId) }
+    val transactions by transactionsSource.observeAsState(emptyList())
+    // Data migrated from before transactions existed has no INCOME record,
+    // the calendar can't be rebuilt for it (same rule as on the analytics screen)
+    val canShowCalendar = remember(transactions) {
+        transactions.any { it.type == TransactionType.INCOME }
+    }
 
     var showList by remember { mutableStateOf(false) }
 
@@ -175,6 +187,18 @@ fun PeriodOverview(
                         count = spends.size,
                         onClick = { showList = true },
                     )
+                    if (canShowCalendar) {
+                        Spacer(Modifier.height(36.dp))
+                        SpendsCalendar(
+                            modifier = Modifier.zIndex(-1f),
+                            budget = period.budget,
+                            transactions = transactions,
+                            startDate = period.startDate,
+                            finishDate = period.finishDate,
+                            actualFinishDate = period.actualFinishDate,
+                            currency = currency,
+                        )
+                    }
                     Spacer(Modifier.height(36.dp))
                     CategoriesChartCard(
                         modifier = Modifier.fillMaxWidth(),
