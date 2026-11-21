@@ -221,4 +221,14 @@
   <string name="slip_import_hide_text">Hide recognized text</string>
   <string name="slip_import_no_text">(no text was recognized)</string>
   <string name="slip_import_ocr_error">Slips can\'t be read on this phone: %1$s</string>
+  <string name="start_date_today">Starts today</string>
+  <string name="start_date_label">Starts %1$s</string>
+  <string name="import_history_csv">Import history from CSV</string>
+  <string name="import_history_csv_description">From an \"All periods\" export; what\'s already here is skipped</string>
+  <plurals name="import_history_done">
+    <item quantity="one">Imported %1$d spend, %2$d already here</item>
+    <item quantity="other">Imported %1$d spends, %2$d already here</item>
+  </plurals>
+  <string name="import_history_not_history">This isn\'t an \"All periods\" history export</string>
+  <string name="import_history_failed">Couldn\'t import the file</string>
 </resources>

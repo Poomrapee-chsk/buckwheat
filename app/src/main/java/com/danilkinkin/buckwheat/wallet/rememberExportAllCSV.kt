@@ -62,6 +62,7 @@ fun rememberExportAllCSV(
                             startDate = spendsViewModel.startPeriodDate.asFlow().first(),
                             finishDate = spendsViewModel.finishPeriodDate.asFlow().first(),
                             currency = spendsViewModel.currency.asFlow().first().value.orEmpty(),
+                            budget = budget,
                         )
                     } else {
                         null

@@ -35,6 +35,7 @@ import com.danilkinkin.buckwheat.slip.SLIP_IMPORT_SHEET
 import com.danilkinkin.buckwheat.ui.BuckwheatTheme
 import com.danilkinkin.buckwheat.util.*
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.*
 
 
@@ -59,11 +60,24 @@ fun Wallet(
     val finishPeriodDate by spendsViewModel.finishPeriodDate.observeAsState(Date())
     val dateToValue = remember { mutableStateOf(spendsViewModel.finishPeriodDate.value) }
     val currency by spendsViewModel.currency.observeAsState()
+    val periods by spendsViewModel.periods.observeAsState(emptyList())
     val spends by spendsViewModel.spends.observeAsState()
     val restedBudgetDistributionMethod by spendsViewModel.restedBudgetDistributionMethod.observeAsState()
 
     val restBudget =
         (budgetCache - spent - spentFromDailyBudget)
+
+    // A new period starts today unless moved earlier; a running one keeps its start unless changed
+    val startsNewPeriod = forceChange || spends.isNullOrEmpty()
+    var startValue by remember(startPeriodDate, forceChange) {
+        mutableStateOf(if (forceChange) Date() else startPeriodDate)
+    }
+    // Not into a past period, not in the future, and for a running period not after its first spend
+    val minStartDate = periods.maxOfOrNull { (it.actualFinishDate ?: it.finishDate).toLocalDate() }?.plusDays(1)
+    val maxStartDate = listOfNotNull(
+        LocalDate.now(),
+        if (!startsNewPeriod) spends?.minOfOrNull { it.date }?.toLocalDate() else null,
+    ).min()
 
     val openConfirmFinishBudgetDialog = remember { mutableStateOf(false) }
 
@@ -75,6 +89,7 @@ fun Wallet(
     val isChange = (
             budgetCache != budget
                     || dateToValue.value != finishPeriodDate
+                    || !isSameDay(startValue.time, startPeriodDate.time)
             )
 
     var isEdit by remember(startPeriodDate, finishPeriodDate, forceChange) {
@@ -183,7 +198,11 @@ fun Wallet(
                             onChange = { newBudget, finishDate ->
                                 budgetCache = newBudget
                                 dateToValue.value = finishDate
-                            }
+                            },
+                            startDate = startValue,
+                            minStartDate = minStartDate,
+                            maxStartDate = maxStartDate,
+                            onStartChange = { startValue = it },
                         )
                     } else {
                         BudgetSummary(
@@ -280,6 +299,16 @@ fun Wallet(
                             onClick = { showExportChooser = true }
                         )
 
+                        val importHistoryLaunch = rememberImportHistoryCSV(
+                            activityResultRegistryOwner = activityResultRegistryOwner
+                        )
+                        ButtonRow(
+                            icon = painterResource(R.drawable.ic_add),
+                            text = stringResource(R.string.import_history_csv),
+                            description = stringResource(R.string.import_history_csv_description),
+                            onClick = { importHistoryLaunch() }
+                        )
+
                         if (showExportChooser) {
                             ExportChooserDialog(
                                 onCurrentPeriod = { exportCSVLaunch() },
@@ -329,9 +358,9 @@ fun Wallet(
                                 spendsViewModel.changeDisplayCurrency(currency!!)
 
                                 if (spends!!.isNotEmpty() && !forceChange) {
-                                    spendsViewModel.changeBudget(budgetCache, dateToValue.value!!)
+                                    spendsViewModel.changeBudget(budgetCache, dateToValue.value!!, startValue)
                                 } else {
-                                    spendsViewModel.setBudget(budgetCache, dateToValue.value!!)
+                                    spendsViewModel.setBudget(budgetCache, dateToValue.value!!, startValue)
                                     appViewModel.activateTutorial(TUTORS.OPEN_WALLET)
                                 }
 
