@@ -9,65 +9,26 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.asFlow
 import androidx.lifecycle.viewModelScope
-import com.danilkinkin.buckwheat.data.entities.Transaction
-import com.danilkinkin.buckwheat.data.entities.TransactionType
 import com.danilkinkin.buckwheat.di.SpendsRepository
-import com.danilkinkin.buckwheat.util.roundToDay
-import com.danilkinkin.buckwheat.util.toDate
+import com.danilkinkin.buckwheat.slip.watch.SlipMedia
+import com.danilkinkin.buckwheat.slip.watch.SlipNotifications
+import com.danilkinkin.buckwheat.slip.watch.SlipWatchSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.math.BigDecimal
 import java.util.Date
 import javax.inject.Inject
-import kotlin.math.abs
-
-enum class SlipWarning {
-    /** No text could be read at all */
-    UNREADABLE,
-    NO_AMOUNT,
-
-    /** No date found, today is used */
-    NO_DATE,
-
-    /** Before the start of the current budget period, can't be added */
-    OUTSIDE_PERIOD,
-
-    /** Later than now, can't be added */
-    FUTURE,
-
-    /** A spend with the same amount at about the same time already exists */
-    DUPLICATE,
-}
-
-data class SlipCandidate(
-    val id: Int,
-    val amountText: String,
-    val date: Date,
-    val tag: String,
-    val payee: String?,
-    val note: String?,
-    val warnings: Set<SlipWarning>,
-    val selected: Boolean,
-) {
-    val amount: BigDecimal?
-        get() = amountText.replace(",", "").trim().toBigDecimalOrNull()?.takeIf { it > BigDecimal.ZERO }
-
-    /** Spends outside the current period would break the daily budget math */
-    val canBeAdded: Boolean
-        get() = SlipWarning.OUTSIDE_PERIOD !in warnings && SlipWarning.FUTURE !in warnings
-}
 
 @HiltViewModel
 class SlipImportViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val spendsRepository: SpendsRepository,
     private val tagMemory: SlipTagMemory,
+    private val watchSettings: SlipWatchSettings,
 ) : ViewModel() {
     val candidates = mutableStateListOf<SlipCandidate>()
     var isReading by mutableStateOf(false)
@@ -77,38 +38,68 @@ class SlipImportViewModel @Inject constructor(
     var totalCount by mutableIntStateOf(0)
         private set
 
+    /** Images of a folder scan that turned out not to be slips */
+    var skippedCount by mutableIntStateOf(0)
+        private set
+
     private var nextId = 0
 
-    fun readSlips(uris: List<Uri>) {
-        if (uris.isEmpty() || isReading) return
+    /** Slips found in watched folders and loaded here, cleared from the waiting list on add */
+    private val shownPendingIds = mutableSetOf<Long>()
+
+    private data class Source(val uri: Uri, val mediaId: Long?)
+
+    /** Images the user picked: every one is shown, even when it doesn't look like a slip */
+    fun readSlips(uris: List<Uri>) = read(uris.map { Source(it, null) }, onlySlips = false)
+
+    /** Past images of the chosen folders: only the ones that look like slips are shown */
+    fun scanFolders(bucketIds: Collection<Long>, from: Date) {
+        if (isReading) return
+        isReading = true
+
+        viewModelScope.launch {
+            val images = withContext(Dispatchers.IO) {
+                SlipMedia.queryImages(context, bucketIds, from.time / 1000 - 1)
+            }
+            isReading = false
+            read(images.map { Source(it.uri, it.mediaId) }, onlySlips = true)
+        }
+    }
+
+    private fun read(sources: List<Source>, onlySlips: Boolean) {
+        if (isReading) return
 
         isReading = true
         readCount = 0
-        totalCount = uris.size
+        totalCount = sources.size
+        skippedCount = 0
 
         viewModelScope.launch {
-            val tagCounts = spendsRepository.getSpendingHistory().asFlow().first()
-                .filter { it.comment.isNotBlank() }
-                .groupingBy { it.comment.trim() }
-                .eachCount()
-            val payeeTags = tagMemory.getAll()
-            val existingSpends = spendsRepository.getAllSpends().asFlow().first()
-            val periodStart = roundToDay(spendsRepository.getStartPeriodDate().first())
-
             try {
+                val factory = SlipCandidateFactory.load(spendsRepository, tagMemory)
+                val known = candidates.mapNotNull { it.mediaId }.toSet()
+
                 SlipTextRecognizer(context).use { recognizer ->
-                    uris.forEach { uri ->
+                    sources.forEach { source ->
+                        if (source.mediaId != null && source.mediaId in known) {
+                            readCount += 1
+                            return@forEach
+                        }
+
                         val text = withContext(Dispatchers.Default) {
                             try {
-                                recognizer.recognize(uri)
+                                recognizer.recognize(source.uri)
                             } catch (e: Exception) {
-                                Log.e("SlipImport", "Failed to read slip $uri", e)
+                                Log.e("SlipImport", "Failed to read slip ${source.uri}", e)
                                 ""
                             }
                         }
-                        candidates.add(
-                            buildCandidate(text, tagCounts, payeeTags, existingSpends, periodStart)
-                        )
+
+                        if (onlySlips && !SlipParser.looksLikeSlip(text)) {
+                            skippedCount += 1
+                        } else {
+                            candidates.add(factory.build(nextId++, text, candidates, source.mediaId))
+                        }
                         readCount += 1
                     }
                 }
@@ -120,52 +111,19 @@ class SlipImportViewModel @Inject constructor(
         }
     }
 
-    private fun buildCandidate(
-        text: String,
-        tagCounts: Map<String, Int>,
-        payeeTags: Map<String, String>,
-        existingSpends: List<Transaction>,
-        periodStart: Date,
-    ): SlipCandidate {
-        val slip = SlipParser.parse(text)
-        val now = Date()
-        val date = slip.dateTime?.toDate() ?: now
-        val warnings = mutableSetOf<SlipWarning>()
+    /** Adds slips found in watched folders (from notifications) to the review list */
+    fun loadPending() {
+        viewModelScope.launch {
+            val pending = watchSettings.pending.first()
+            val known = candidates.mapNotNull { it.mediaId }.toSet()
+            val factory = SlipCandidateFactory.load(spendsRepository, tagMemory)
 
-        if (text.isBlank()) warnings += SlipWarning.UNREADABLE
-        if (slip.amount == null) warnings += SlipWarning.NO_AMOUNT
-        if (slip.dateTime == null) warnings += SlipWarning.NO_DATE
-        if (date.before(periodStart)) warnings += SlipWarning.OUTSIDE_PERIOD
-        if (date.time > now.time + FUTURE_TOLERANCE) warnings += SlipWarning.FUTURE
-
-        if (slip.amount != null) {
-            val sameSpend = { value: BigDecimal?, other: Date ->
-                value != null && value.compareTo(slip.amount) == 0 &&
-                        abs(other.time - date.time) <= DUPLICATE_WINDOW
-            }
-            // Already in the budget, or the same slip picked twice
-            if (existingSpends.any { sameSpend(it.value, it.date) } ||
-                candidates.any { sameSpend(it.amount, it.date) }
-            ) {
-                warnings += SlipWarning.DUPLICATE
+            pending.filter { it.mediaId !in known }.forEach { slip ->
+                shownPendingIds += slip.mediaId!!
+                // The budget may have changed since it was found
+                candidates.add(slip.copy(id = nextId++, selected = factory.stillAddable(slip)))
             }
         }
-
-        val candidate = SlipCandidate(
-            id = nextId++,
-            amountText = slip.amount?.toPlainString().orEmpty(),
-            date = date,
-            tag = TagSuggester.suggest(slip.note, slip.payee, tagCounts, payeeTags),
-            payee = slip.payee,
-            note = slip.note,
-            warnings = warnings,
-            selected = false,
-        )
-
-        return candidate.copy(
-            selected = candidate.canBeAdded && candidate.amount != null &&
-                    warnings.none { it == SlipWarning.DUPLICATE || it == SlipWarning.NO_DATE }
-        )
     }
 
     fun update(candidate: SlipCandidate) {
@@ -176,23 +134,18 @@ class SlipImportViewModel @Inject constructor(
     val selectedCount: Int
         get() = candidates.count { it.selected && it.canBeAdded && it.amount != null }
 
-    /** Adds the selected slips as spends, oldest first, and remembers the chosen tags. */
+    /**
+     * Adds the selected slips as spends, oldest first, and remembers the chosen tags.
+     * Waiting slips that were shown here are cleared either way: the user has seen them.
+     */
     fun addSelected(onDone: (count: Int) -> Unit) {
         val toAdd = candidates
             .filter { it.selected && it.canBeAdded && it.amount != null }
             .sortedBy { it.date }
+        val seenPending = shownPendingIds.toList()
 
         viewModelScope.launch {
-            toAdd.forEach { candidate ->
-                spendsRepository.addSpent(
-                    Transaction(
-                        type = TransactionType.SPENT,
-                        value = candidate.amount!!,
-                        date = candidate.date,
-                        comment = candidate.tag.trim(),
-                    )
-                )
-            }
+            toAdd.forEach { spendsRepository.addSpent(it.toTransaction()) }
 
             tagMemory.remember(
                 toAdd
@@ -200,17 +153,19 @@ class SlipImportViewModel @Inject constructor(
                     .associate { it.payee!! to it.tag.trim() }
             )
 
+            watchSettings.removePending(seenPending)
+            seenPending.forEach { SlipNotifications.cancel(context, it) }
+            shownPendingIds.clear()
+
             candidates.clear()
             onDone(toAdd.size)
         }
     }
 
     fun clear() {
-        if (!isReading) candidates.clear()
-    }
-
-    companion object {
-        private const val DUPLICATE_WINDOW = 30 * 60 * 1000L
-        private const val FUTURE_TOLERANCE = 5 * 60 * 1000L
+        if (isReading) return
+        candidates.clear()
+        shownPendingIds.clear()
+        skippedCount = 0
     }
 }

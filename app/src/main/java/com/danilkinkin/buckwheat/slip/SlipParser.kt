@@ -73,6 +73,27 @@ object SlipParser {
         )
     }
 
+    private val SLIP_KEYWORDS = listOf(
+        "สำเร็จ", "ค่าธรรมเนียม", "เลขที่รายการ", "รหัสอ้างอิง", "เลขที่อ้างอิง", "บันทึกช่วยจำ",
+    )
+    private val SLIP_KEYWORDS_LATIN = Regex(
+        "successful|completed|transaction id|ref(erence)? ?no|fee", RegexOption.IGNORE_CASE,
+    )
+
+    /**
+     * Whether OCR text is a payment slip and not any other screenshot or photo in the folder:
+     * it needs an amount, a date and at least one word typical for slips.
+     */
+    fun looksLikeSlip(rawText: String): Boolean {
+        val slip = parse(rawText)
+        if (slip.amount == null || slip.dateTime == null) return false
+
+        val text = normalize(rawText)
+        val textSkeleton = skeleton(text)
+        return SLIP_KEYWORDS_LATIN.containsMatchIn(text) ||
+                SLIP_KEYWORDS.any { textSkeleton.contains(skeleton(it)) }
+    }
+
     // ---- text helpers ----
 
     internal fun normalize(text: String): String = Normalizer.normalize(text, Normalizer.Form.NFC)

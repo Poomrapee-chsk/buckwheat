@@ -31,6 +31,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +46,9 @@ import com.danilkinkin.buckwheat.LocalWindowInsets
 import com.danilkinkin.buckwheat.R
 import com.danilkinkin.buckwheat.base.LocalBottomSheetScrollState
 import com.danilkinkin.buckwheat.data.AppViewModel
+import com.danilkinkin.buckwheat.data.PathState
+import com.danilkinkin.buckwheat.base.ButtonRow
+import com.danilkinkin.buckwheat.slip.watch.SLIP_FOLDERS_SHEET
 import com.danilkinkin.buckwheat.util.prettyDate
 
 const val SLIP_IMPORT_SHEET = "slipImport"
@@ -63,6 +67,9 @@ fun SlipImport(
         LocalWindowInsets.current.calculateBottomPadding().coerceAtLeast(16.dp)
     val candidates = slipImportViewModel.candidates
     val context = LocalContext.current
+
+    // Slips found in watched folders, e.g. after tapping a notification
+    LaunchedEffect(Unit) { slipImportViewModel.loadPending() }
 
     val pickSlips: () -> Unit = if (activityResultRegistryOwner == null) {
         {}
@@ -136,6 +143,24 @@ fun SlipImport(
                     ) {
                         Text(stringResource(R.string.slip_import_choose))
                     }
+                    ButtonRow(
+                        icon = painterResource(R.drawable.ic_calendar),
+                        text = stringResource(R.string.slip_folders_title),
+                        description = stringResource(R.string.slip_folders_entry_description),
+                        onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
+                    )
+                }
+
+                if (slipImportViewModel.skippedCount > 0 && !slipImportViewModel.isReading) {
+                    Text(
+                        text = pluralStringResource(
+                            R.plurals.slip_import_skipped,
+                            slipImportViewModel.skippedCount,
+                            slipImportViewModel.skippedCount,
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LocalContentColor.current.copy(alpha = 0.7f),
+                    )
                 }
 
                 if (slipImportViewModel.isReading) {

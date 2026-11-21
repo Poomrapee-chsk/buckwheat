@@ -3,7 +3,12 @@ package com.danilkinkin.buckwheat
 import OverrideLocalize
 import android.content.Context
 import android.content.pm.ActivityInfo
+import android.content.Intent
 import android.os.Bundle
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.danilkinkin.buckwheat.data.AppViewModel
+import com.danilkinkin.buckwheat.data.PathState
+import com.danilkinkin.buckwheat.slip.SLIP_IMPORT_SHEET
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.setContent
@@ -52,6 +57,22 @@ class MainActivity : ComponentActivity() {
     private val isDone: MutableState<Boolean> = mutableStateOf(false)
     private val isReady: MutableState<Boolean> = mutableStateOf(false)
 
+    /** Sheet requested by a notification, see [EXTRA_OPEN_SHEET] */
+    private val sheetToOpen: MutableState<String?> = mutableStateOf(null)
+
+    private fun readSheetToOpen(intent: Intent?) {
+        // The activity is exported: only open sheets that are meant to be opened from outside
+        intent?.getStringExtra(EXTRA_OPEN_SHEET)
+            ?.takeIf { it in OPENABLE_SHEETS }
+            ?.let { sheetToOpen.value = it }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        readSheetToOpen(intent)
+    }
+
     //TODO: Remove after 01.01.2024. Need for migration to DataStore
     @Inject
     lateinit var storageDao: StorageDao
@@ -66,6 +87,7 @@ class MainActivity : ComponentActivity() {
         }
 
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) readSheetToOpen(intent)
 
         setContent {
             val localContext = LocalContext.current
@@ -102,6 +124,14 @@ class MainActivity : ComponentActivity() {
                             ) {
                                 MainScreen(activityResultRegistryOwner)
 
+                                val appViewModel: AppViewModel = hiltViewModel()
+                                LaunchedEffect(sheetToOpen.value) {
+                                    sheetToOpen.value?.let {
+                                        appViewModel.openSheet(PathState(it))
+                                        sheetToOpen.value = null
+                                    }
+                                }
+
                                 LaunchedEffect(Unit) {
                                     // App rendered and splash screen can be hidden
                                     isDone.value = true
@@ -112,5 +142,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_SHEET = "openSheet"
+        private val OPENABLE_SHEETS = setOf(SLIP_IMPORT_SHEET)
     }
 }

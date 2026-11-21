@@ -109,6 +109,9 @@ dependencies {
 
     // On-device OCR for reading payment slips (Thai + English), Apache-2.0
     implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
+
+    // Background scan of watched folders for new slips (already pulled in by Glance, pinned newer)
+    implementation("androidx.work:work-runtime-ktx:2.11.2")
     implementation("io.coil-kt:coil-compose:2.7.0")
     ksp("androidx.room:room-compiler:2.7.2")
     ksp("androidx.hilt:hilt-compiler:1.2.0")

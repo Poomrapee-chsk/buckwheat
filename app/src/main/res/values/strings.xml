@@ -178,4 +178,31 @@
   <string name="export_all_to_csv">Export all history to CSV</string>
   <string name="export_all_to_csv_description">Every spend from every period, also past ones</string>
   <string name="export_all_to_csv_file_name">Buckwheat history %1$s</string>
+  <string name="slip_folders_title">Slip folders</string>
+  <string name="slip_folders_entry_description">Scan folders for past slips, or get notified about new ones</string>
+  <string name="slip_folders_access_description">To find slips by itself, Buckwheat needs access to all your photos. Slips are read on your phone, nothing is uploaded. If you only allow selected photos, new slips can\'t be found.</string>
+  <string name="slip_folders_allow_access">Allow photo access</string>
+  <string name="slip_folders_watch">Notify about new slips</string>
+  <string name="slip_folders_watch_description">When a new slip is saved in a chosen folder, get a notification to add it</string>
+  <string name="slip_folders_choose">Folders with slips</string>
+  <string name="slip_folders_empty">No photo folders found</string>
+  <string name="slip_folders_bank_app">bank app</string>
+  <plurals name="slip_folders_images">
+    <item quantity="one">%d image</item>
+    <item quantity="other">%d images</item>
+  </plurals>
+  <string name="slip_folders_scan_past">Scan past slips</string>
+  <string name="slip_folders_scan_past_description">Find slips saved in the chosen folders since a day in the current budget period</string>
+  <string name="slip_folders_scan_from">From %1$s</string>
+  <string name="slip_folders_scan">Scan</string>
+  <plurals name="slip_import_skipped">
+    <item quantity="one">%d image wasn\'t a slip and was skipped</item>
+    <item quantity="other">%d images weren\'t slips and were skipped</item>
+  </plurals>
+  <string name="slip_notification_channel">New slips</string>
+  <string name="slip_notification_channel_description">Slips found in watched folders, ready to add as spends</string>
+  <string name="slip_notification_title">Add %1$s?</string>
+  <string name="slip_notification_add">Add</string>
+  <string name="slip_notification_review">Review</string>
+  <string name="slip_notification_dismiss">Dismiss</string>
 </resources>
