@@ -43,6 +43,9 @@ shows the time left.
   - How often each setup found a slip, amount, date, payee, reference and note.
   - How often each setup agrees with `current`.
   - With `--truth`: how often each setup is right.
+- **`details.txt`**: for slips where a date is missing or the setups disagree on the amount or date, only the
+  recognized lines with a date, time or amount, and what the parser made of them. No file names, payees,
+  notes, references or account numbers. **Meant to be shared**, to improve the parser; have a look first.
 - **`results.csv`**: what every setup read from every image. **Private.**
 - **`report.html`**: every slip where the setups disagree (or one is wrong against `--truth`), with the image,
   each setup's reading and its recognized text. Open it in a browser. **Private.**

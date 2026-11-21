@@ -147,11 +147,13 @@ fun main(args: Array<String>) {
     File(out, "summary.txt").writeText(summary)
     writeCsv(File(out, "results.csv"), results)
     writeReport(File(out, "report.html"), results, setups, truth)
+    File(out, "details.txt").writeText(details(results, setups))
 
     println()
     println(summary)
     println("Written to ${out.absolutePath}:")
     println("  summary.txt  counts and timings only, safe to share")
+    println("  details.txt  date/time and amount lines of problem slips, no names: meant to share")
     println("  results.csv  what each setup read from each slip (private)")
     println("  report.html  slips where the setups disagree, with images (private)")
 }
@@ -368,6 +370,44 @@ private fun summary(
                         pct(withPayee.count { (f, r) -> truth.getValue(f.name).payeeOk(r.getValue(s)) }, withPayee.size)
             )
         }
+    }
+}
+
+// ---- shareable details ----
+
+// Date and time or amount: "21 พ.ย. 69 16:39 น.", "27 Oct 2026 19:10", "120.00 บาท", "1,330.00"
+private val TIME = Regex("""\d{1,2}\s*[:.]\s*\d{2}(?!\d)|\d{1,2}\s*[ก-๛A-Za-z.]{2,12}\s*\d{2,4}""")
+private val MONEY = Regex("""\d[\d,]*[.,]\d{2}(?!\d)""")
+// Nothing that looks like an account or reference number
+private val LONG_NUMBER = Regex("""[0-9xX*]{6,}|[0-9xX*]+-[0-9xX*]+-""")
+
+/**
+ * For slips where a date is missing or the setups disagree on the amount or date: only the
+ * recognized lines with a date, time or amount, and what the parser made of them. No file names,
+ * payees, notes, references or account numbers, so it can be shared to improve the parser.
+ */
+private fun details(results: Map<File, Map<Setup, Reading>>, setups: List<Setup>): String = buildString {
+    appendLine("Date/time and amount lines of problem slips (no names, references or file names)")
+    appendLine()
+    var n = 0
+    results.values.forEach { readings ->
+        if (readings.values.none { it.looksLikeSlip || it.slip.amount != null }) return@forEach
+        n++
+        val amounts = readings.values.map { it.slip.amount?.stripTrailingZeros() }.distinct()
+        val dates = readings.values.map { it.slip.dateTime }.distinct()
+        val missingDate = readings.values.any { it.slip.dateTime == null }
+        if (amounts.size == 1 && dates.size == 1 && !missingDate) return@forEach
+
+        appendLine("slip $n")
+        setups.forEach { setup ->
+            val r = readings.getValue(setup)
+            val lines = r.text.lines()
+                .map { it.trim() }
+                .filter { line -> (TIME.containsMatchIn(line) || MONEY.containsMatchIn(line)) && !LONG_NUMBER.containsMatchIn(line) }
+            appendLine("  ${setup.id.padEnd(8)} -> amount ${r.slip.amount?.toPlainString() ?: "-"}, date ${r.slip.dateTime ?: "-"}")
+            lines.forEach { appendLine("             | $it") }
+        }
+        appendLine()
     }
 }
 
