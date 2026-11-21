@@ -14,7 +14,9 @@ import com.danilkinkin.buckwheat.data.RestedBudgetDistributionMethod
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.util.DAY
 import com.danilkinkin.buckwheat.data.ExtendCurrency
+import com.danilkinkin.buckwheat.data.dao.PeriodDao
 import com.danilkinkin.buckwheat.data.dao.TransactionDao
+import com.danilkinkin.buckwheat.data.entities.BudgetPeriod
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 import com.danilkinkin.buckwheat.errorForReport
 import com.danilkinkin.buckwheat.util.countDays
@@ -45,10 +47,16 @@ val finishPeriodActualDateStoreKey = longPreferencesKey("finishPeriodActualDate"
 class SpendsRepository @Inject constructor(
     @ApplicationContext val context: Context,
     private val transactionDao: TransactionDao,
+    private val periodDao: PeriodDao,
     private val getCurrentDateUseCase: GetCurrentDateUseCase,
 ) {
     fun getAllTransactions(): LiveData<List<Transaction>> = transactionDao.getAll()
     fun getAllSpends(): LiveData<List<Transaction>> = transactionDao.getAll(TransactionType.SPENT)
+
+    fun getArchivedPeriods(): LiveData<List<BudgetPeriod>> = periodDao.getAll()
+    fun getArchivedPeriod(uid: Int): LiveData<BudgetPeriod?> = periodDao.getById(uid)
+    fun getTransactionsOfArchivedPeriod(uid: Int): LiveData<List<Transaction>> =
+        transactionDao.getAllOfPeriod(uid)
 
     fun getAllTags(): LiveData<List<String>> = transactionDao.getAll().map { transactions ->
         transactions
@@ -129,7 +137,42 @@ class SpendsRepository @Inject constructor(
         }
     }
 
+    /**
+     * Moves the current period with all its transactions to the archive,
+     * so it stays available for browsing after a new period is started.
+     * Periods without any spending are not archived.
+     */
+    private suspend fun archiveCurrentPeriod() {
+        val spends = transactionDao.getAll(TransactionType.SPENT).asFlow().first()
+        val finishPeriodDate = getFinishPeriodDate().first()
+
+        if (spends.isEmpty() || finishPeriodDate === null) return
+
+        val period = BudgetPeriod(
+            budget = getBudget().first(),
+            spent = spends.fold(BigDecimal.ZERO) { acc, spent -> acc + spent.value },
+            startDate = getStartPeriodDate().first(),
+            finishDate = finishPeriodDate,
+            // A new period started before the planned finish date also means it was finished early
+            actualFinishDate = (getFinishPeriodActualDate().first()
+                ?: getCurrentDateUseCase().takeIf { it.before(finishPeriodDate) })?.time,
+            currency = context.budgetDataStore.data.first()[currencyStoreKey],
+        )
+
+        val periodId = periodDao.archiveCurrentPeriod(period)
+
+        Log.d("SpendsRepository", "Archive period [id: $periodId period: $period]")
+    }
+
     suspend fun setBudget(newBudget: BigDecimal, newFinishDate: Date) {
+        try {
+            archiveCurrentPeriod()
+        } catch (e: Exception) {
+            // Do not block creating a new period if archiving failed
+            Log.e("SpendsRepository", "Failed to archive period", e)
+            context.errorForReport = e.stackTraceToString()
+        }
+
         context.budgetDataStore.edit {
             it[budgetStoreKey] = newBudget.toString()
             it[spentStoreKey] = BigDecimal.ZERO.toString()
@@ -150,7 +193,7 @@ class SpendsRepository @Inject constructor(
             )
         }
 
-        transactionDao.deleteAll()
+        transactionDao.deleteCurrent()
         transactionDao.insert(
             Transaction(
                 TransactionType.INCOME,

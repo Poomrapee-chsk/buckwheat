@@ -31,6 +31,8 @@ import com.danilkinkin.buckwheat.data.RestedBudgetDistributionMethod
 import com.danilkinkin.buckwheat.data.SpendsViewModel
 import com.danilkinkin.buckwheat.di.TUTORS
 import com.danilkinkin.buckwheat.analytics.ANALYTICS_SHEET
+import com.danilkinkin.buckwheat.archive.PAST_PERIODS_SHEET
+import com.danilkinkin.buckwheat.data.ArchiveViewModel
 import com.danilkinkin.buckwheat.ui.BuckwheatTheme
 import com.danilkinkin.buckwheat.util.*
 import java.math.BigDecimal
@@ -45,6 +47,7 @@ fun Wallet(
     activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
     appViewModel: AppViewModel = hiltViewModel(),
     spendsViewModel: SpendsViewModel = hiltViewModel(),
+    archiveViewModel: ArchiveViewModel = hiltViewModel(),
     onClose: () -> Unit = {},
 ) {
     val haptic = LocalHapticFeedback.current
@@ -58,6 +61,7 @@ fun Wallet(
     val finishPeriodDate by spendsViewModel.finishPeriodDate.observeAsState(Date())
     val dateToValue = remember { mutableStateOf(spendsViewModel.finishPeriodDate.value) }
     val currency by spendsViewModel.currency.observeAsState()
+    val archivedPeriods by archiveViewModel.periods.observeAsState(emptyList())
     val spends by spendsViewModel.spends.observeAsState()
     val restedBudgetDistributionMethod by spendsViewModel.restedBudgetDistributionMethod.observeAsState()
 
@@ -253,6 +257,16 @@ fun Wallet(
                                 text = stringResource(R.string.view_analytics),
                                 onClick = {
                                     appViewModel.openSheet(PathState(ANALYTICS_SHEET))
+                                }
+                            )
+                        }
+
+                        if (archivedPeriods.isNotEmpty()) {
+                            ButtonRow(
+                                icon = painterResource(R.drawable.ic_calendar),
+                                text = stringResource(R.string.past_periods_title),
+                                onClick = {
+                                    appViewModel.openSheet(PathState(PAST_PERIODS_SHEET))
                                 }
                             )
                         }

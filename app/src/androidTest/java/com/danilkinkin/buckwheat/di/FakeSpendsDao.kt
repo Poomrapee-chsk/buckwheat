@@ -2,7 +2,9 @@ package com.danilkinkin.buckwheat.di
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import com.danilkinkin.buckwheat.data.dao.PeriodDao
 import com.danilkinkin.buckwheat.data.dao.TransactionDao
+import com.danilkinkin.buckwheat.data.entities.BudgetPeriod
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 
@@ -33,8 +35,34 @@ class FakeTransactionDao: TransactionDao {
         spends.removeIf { it.uid == uid }
     }
 
-    override fun deleteAll() {
+    override fun getAllOfPeriod(periodId: Int): LiveData<List<Transaction>> {
+        return MutableLiveData(spends.filter { it.periodId == periodId })
+    }
+
+    override fun deleteCurrent() {
 
     }
 
+}
+class FakePeriodDao : PeriodDao() {
+    private val periods = mutableListOf<BudgetPeriod>()
+
+    override fun getAll(): LiveData<List<BudgetPeriod>> {
+        return MutableLiveData(periods)
+    }
+
+    override fun getById(uid: Int): LiveData<BudgetPeriod?> {
+        return MutableLiveData(periods.find { it.uid == uid })
+    }
+
+    override fun insert(period: BudgetPeriod): Long {
+        period.uid = periods.size + 1
+        periods.add(period)
+
+        return period.uid.toLong()
+    }
+
+    override fun attachCurrentTransactions(periodId: Int) {
+
+    }
 }

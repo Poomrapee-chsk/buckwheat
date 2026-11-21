@@ -2,6 +2,7 @@ package com.danilkinkin.buckwheat.data.entities
 
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 import java.math.BigDecimal
 import java.util.*
@@ -12,7 +13,7 @@ enum class TransactionType {
     SPENT
 }
 
-@Entity(tableName = "transactions")
+@Entity(tableName = "transactions", indices = [Index(value = ["periodId"])])
 data class Transaction(
     @ColumnInfo(name = "type")
     val type: TransactionType,
@@ -25,6 +26,10 @@ data class Transaction(
 
     @ColumnInfo(name = "comment", defaultValue = "")
     val comment: String = "",
+
+    // Null for transactions of the current period, otherwise the uid of the archived period
+    @ColumnInfo(name = "periodId")
+    val periodId: Int? = null,
 ) {
     @PrimaryKey(autoGenerate = true) var uid: Int = 0
 }
