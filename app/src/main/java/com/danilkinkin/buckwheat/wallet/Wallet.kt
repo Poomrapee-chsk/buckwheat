@@ -276,6 +276,17 @@ fun Wallet(
                             onClick = { exportCSVLaunch() }
                         )
 
+                        val exportAllCSVLaunch = rememberExportAllCSV(
+                            activityResultRegistryOwner = activityResultRegistryOwner
+                        )
+
+                        ButtonRow(
+                            icon = painterResource(R.drawable.ic_file_download),
+                            text = stringResource(R.string.export_all_to_csv),
+                            description = stringResource(R.string.export_all_to_csv_description),
+                            onClick = { exportAllCSVLaunch() }
+                        )
+
                         CompositionLocalProvider(
                             LocalContentColor provides MaterialTheme.colorScheme.error
                         ) {

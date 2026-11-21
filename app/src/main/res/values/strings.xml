@@ -175,4 +175,7 @@
   <string name="slip_warning_outside_period">Before the current budget period, can\'t be added</string>
   <string name="slip_warning_future">Date is in the future, can\'t be added</string>
   <string name="slip_warning_duplicate">Looks like a spend you already have</string>
+  <string name="export_all_to_csv">Export all history to CSV</string>
+  <string name="export_all_to_csv_description">Every spend from every period, also past ones</string>
+  <string name="export_all_to_csv_file_name">Buckwheat history %1$s</string>
 </resources>

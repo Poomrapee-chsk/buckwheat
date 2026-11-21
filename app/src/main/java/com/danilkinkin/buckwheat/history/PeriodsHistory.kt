@@ -30,6 +30,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.danilkinkin.buckwheat.LocalWindowInsets
 import com.danilkinkin.buckwheat.R
+import com.danilkinkin.buckwheat.base.ButtonRow
+import com.danilkinkin.buckwheat.wallet.rememberExportAllCSV
+import androidx.activity.result.ActivityResultRegistryOwner
 import com.danilkinkin.buckwheat.analytics.WholeBudgetCard
 import com.danilkinkin.buckwheat.base.LocalBottomSheetScrollState
 import com.danilkinkin.buckwheat.data.AppViewModel
@@ -43,6 +46,7 @@ const val PERIODS_HISTORY_SHEET = "periodsHistory"
 @OptIn(ExperimentalMaterialApi::class)
 @Composable
 fun PeriodsHistory(
+    activityResultRegistryOwner: ActivityResultRegistryOwner? = null,
     spendsViewModel: SpendsViewModel = hiltViewModel(),
     appViewModel: AppViewModel = hiltViewModel(),
     onClose: () -> Unit = {},
@@ -76,6 +80,18 @@ fun PeriodsHistory(
                 Spacer(Modifier.size(48.dp))
             }
 
+            val exportAllCSVLaunch = rememberExportAllCSV(
+                activityResultRegistryOwner = activityResultRegistryOwner
+            )
+            val exportAllButton: @Composable () -> Unit = {
+                ButtonRow(
+                    icon = painterResource(R.drawable.ic_file_download),
+                    text = stringResource(R.string.export_all_to_csv),
+                    description = stringResource(R.string.export_all_to_csv_description),
+                    onClick = { exportAllCSVLaunch() },
+                )
+            }
+
             if (periods.isEmpty()) {
                 Box(
                     modifier = Modifier
@@ -89,6 +105,7 @@ fun PeriodsHistory(
                         color = colorOnEditor.copy(alpha = 0.7f),
                     )
                 }
+                exportAllButton()
             } else {
                 LazyColumn(
                     contentPadding = PaddingValues(
@@ -132,6 +149,9 @@ fun PeriodsHistory(
                                 ),
                             )
                         }
+                    }
+                    item(key = "export-all") {
+                        exportAllButton()
                     }
                 }
             }

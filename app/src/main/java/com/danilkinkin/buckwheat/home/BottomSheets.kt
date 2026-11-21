@@ -155,6 +155,7 @@ fun BottomSheets(
 
     BottomSheetWrapper(name = PERIODS_HISTORY_SHEET) { state ->
         PeriodsHistory(
+            activityResultRegistryOwner = activityResultRegistryOwner,
             onClose = {
                 coroutineScope.launch { state.hide() }
             }
