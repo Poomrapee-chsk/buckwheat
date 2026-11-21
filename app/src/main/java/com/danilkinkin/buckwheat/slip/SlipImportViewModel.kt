@@ -58,27 +58,24 @@ class SlipImportViewModel @Inject constructor(
     fun readSlips(uris: List<Uri>) = read(uris.map { Source(it, null) }, onlySlips = false)
 
     /** Past images of the chosen folders: only the ones that look like slips are shown */
+    /**
+     * Runs in the background ([SlipScanWorker]) with a progress notification, so it doesn't need the
+     * app open; slips found come in through the waiting list, see [loadPending]
+     */
     fun scanFolders(bucketIds: Collection<Long>, from: Date) {
         if (isReading) return
-        isReading = true
-
-        readJob = viewModelScope.launch {
-            val images = try {
-                withContext(Dispatchers.IO) {
-                    SlipMedia.queryImages(context, bucketIds, from.time / 1000 - 1)
-                }
-            } finally {
-                isReading = false
-            }
-            read(images.map { Source(it.uri, it.mediaId) }, onlySlips = true)
-        }
+        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.start(context, bucketIds, from.time)
     }
+
+    /** Progress of a background folder scan */
+    val scanWork = com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.progress(context)
 
     private var readJob: kotlinx.coroutines.Job? = null
 
     /** Stops reading; slips read so far stay in the list */
     fun stopReading() {
         readJob?.cancel()
+        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.stop(context)
     }
 
     /** Removes a slip from the list; one found in a watched folder isn't offered again */
@@ -164,7 +161,7 @@ class SlipImportViewModel @Inject constructor(
             pending.filter { it.mediaId !in known }.forEach { slip ->
                 shownPendingIds += slip.mediaId!!
                 // The budget may have changed since it was found
-                candidates.add(slip.copy(id = nextId++, selected = factory.stillAddable(slip)))
+                candidates.add(slip.copy(id = nextId++, selected = slip.looksGood && (slip.isPast || factory.stillAddable(slip))))
             }
         }
     }

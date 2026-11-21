@@ -90,6 +90,14 @@ fun SlipImport(
     // Slips found in watched folders, e.g. after tapping a notification
     LaunchedEffect(Unit) { slipImportViewModel.loadPending() }
 
+    // A background folder scan: its progress, and the slips it found so far
+    val scanWork by slipImportViewModel.scanWork.observeAsState(emptyList())
+    val scan = scanWork.firstOrNull()
+    val scanRunning = scan != null && !scan.state.isFinished
+    val scanData = if (scanRunning) scan!!.progress else scan?.outputData
+    val scanFound = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_FOUND, 0) ?: 0
+    LaunchedEffect(scanFound, scanRunning) { slipImportViewModel.loadPending() }
+
     val pickSlips: () -> Unit = if (activityResultRegistryOwner == null) {
         {}
     } else {
@@ -186,7 +194,7 @@ fun SlipImport(
                     .padding(bottom = navigationBarHeight),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (candidates.isEmpty() && !slipImportViewModel.isReading) {
+                if (candidates.isEmpty() && !slipImportViewModel.isReading && !scanRunning) {
                     Text(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -270,6 +278,28 @@ fun SlipImport(
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                     )
+                }
+
+                if (scanRunning) {
+                    val read = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_READ, 0) ?: 0
+                    val total = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_TOTAL, 0) ?: 0
+                    Text(
+                        text = if (total == 0) stringResource(R.string.slip_scan_title)
+                        else stringResource(R.string.slip_scan_progress, read, total, scanFound),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    LinearProgressIndicator(
+                        progress = { read.toFloat() / total.coerceAtLeast(1) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = stringResource(R.string.slip_scan_background_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LocalContentColor.current.copy(alpha = 0.7f),
+                    )
+                    OutlinedButton(onClick = { slipImportViewModel.stopReading() }) {
+                        Text(stringResource(R.string.slip_import_stop))
+                    }
                 }
 
                 if (slipImportViewModel.isReading) {

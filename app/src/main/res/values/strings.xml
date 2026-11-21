@@ -261,4 +261,14 @@
   <string name="slip_folders_check_now">Check for new slips now</string>
   <string name="slip_import_scan_folders">Scan %1$s for slips</string>
   <string name="slip_import_more_options">Folders and older slips</string>
+  <string name="slip_scan_channel">Reading slips</string>
+  <string name="slip_scan_title">Reading slips…</string>
+  <string name="slip_scan_progress">%1$d of %2$d images · %3$d slips found</string>
+  <string name="slip_scan_stop">Stop</string>
+  <string name="slip_scan_background_hint">You can leave the app: reading goes on in the background, and slips appear here as they\'re found</string>
+  <string name="slip_scan_done_title">Slips ready to review</string>
+  <plurals name="slip_scan_done">
+    <item quantity="one">Found %1$d slip in %2$d of %3$d images</item>
+    <item quantity="other">Found %1$d slips in %2$d of %3$d images</item>
+  </plurals>
 </resources>

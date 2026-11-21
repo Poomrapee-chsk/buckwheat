@@ -2,7 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <uses-permission android:name="android.permission.WAKE_LOCK" tools:node="remove" />
+    <!-- Background slip scans (WorkManager foreground work holds a wake lock) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROCESSING" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" tools:node="remove" />
 
     <!-- Slip import: watch photo folders for new slips and notify about them -->
@@ -46,6 +49,12 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/minimal_app_widget_provider" />
         </receiver>
+
+        <!-- Background slip scans show progress as foreground work: declare its service types -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync|mediaProcessing"
+            tools:node="merge" />
 
         <receiver
             android:name=".slip.watch.SlipActionReceiver"
