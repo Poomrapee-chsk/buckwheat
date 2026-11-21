@@ -55,6 +55,11 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        // OCR language data is read with openFd() to check its size, so keep it uncompressed
+        noCompress += "traineddata"
+    }
+
     bundle {
         language {
             enableSplit = false
@@ -101,6 +106,9 @@ dependencies {
     implementation("com.google.dagger:dagger:2.57")
     implementation("com.google.dagger:hilt-android:2.57")
     implementation("org.apache.commons:commons-csv:1.14.0")
+
+    // On-device OCR for reading payment slips (Thai + English), Apache-2.0
+    implementation("cz.adaptech.tesseract4android:tesseract4android:4.9.0")
     implementation("io.coil-kt:coil-compose:2.7.0")
     ksp("androidx.room:room-compiler:2.7.2")
     ksp("androidx.hilt:hilt-compiler:1.2.0")
