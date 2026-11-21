@@ -30,6 +30,7 @@ class HistoryCsvTest {
         startDate = date(2026, 11, 1),
         finishDate = date(2026, 11, 30),
         currency = "THB",
+        budget = BigDecimal("9000"),
     )
 
     @Test
@@ -52,10 +53,10 @@ class HistoryCsvTest {
 
         assertEquals(
             listOf(
-                listOf("2026-10-27 19:10", "1330.00", "THB", "Gadgets", "manual", "2026-10-01", "2026-10-28", "past", "", "", ""),
+                listOf("2026-10-27 19:10", "1330.00", "THB", "Gadgets", "manual", "2026-10-01", "2026-10-28", "past", "", "", "", "10000"),
                 listOf(
                     "2026-11-21 16:39", "120.00", "THB", "Matcha", "", "2026-11-01", "2026-11-30", "current",
-                    "Kawa Matcha Teahouse", "016325143212ATF04567", "",
+                    "Kawa Matcha Teahouse", "016325143212ATF04567", "", "9000",
                 ),
             ),
             rows,
@@ -65,10 +66,10 @@ class HistoryCsvTest {
     @Test
     fun writesBomHeaderAndQuotesCommas() {
         val writer = StringWriter()
-        HistoryCsv.write(writer, listOf(listOf("2026-11-21 16:39", "120.00", "THB", "ชา, นม", "", "", "", "current", "", "", "")))
+        HistoryCsv.write(writer, listOf(listOf("2026-11-21 16:39", "120.00", "THB", "ชา, นม", "", "", "", "current", "", "", "", "")))
         val text = writer.toString()
 
-        assertTrue(text.startsWith("﻿date,amount,currency,tag,treat,period_start,period_end,period,payee,reference,note"))
+        assertTrue(text.startsWith("﻿date,amount,currency,tag,treat,period_start,period_end,period,payee,reference,note,period_budget"))
         assertTrue(text.contains("\"ชา, นม\""))
     }
 }

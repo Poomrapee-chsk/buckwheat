@@ -37,6 +37,10 @@ interface TransactionDao {
     @Insert
     fun insert(vararg transaction: Transaction)
 
+    /** Every spend, current and archived */
+    @Query("SELECT * FROM transactions WHERE type = 'SPENT'")
+    fun getAllSpendsSync(): List<Transaction>
+
     /** @return the new uid */
     @Insert
     fun insertOne(transaction: Transaction): Long

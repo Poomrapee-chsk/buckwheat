@@ -1,5 +1,7 @@
 package com.danilkinkin.buckwheat.wallet
 
+import com.danilkinkin.buckwheat.editor.dateTimeEdit.DatePickerDialog
+
 import androidx.compose.animation.*
 import androidx.compose.animation.core.EaseInOutQuad
 import androidx.compose.animation.core.tween
@@ -51,7 +53,15 @@ fun BudgetConstructor(
     appViewModel: AppViewModel = hiltViewModel(),
     spendsViewModel: SpendsViewModel = hiltViewModel(),
     onChange: (budget: BigDecimal, finishDate: Date?) -> Unit = { _, _ -> },
+    /** First day of the period: today, or earlier so past spends (e.g. from slips) count in it */
+    startDate: Date = Date(),
+    /** Earliest allowed start: the day after the last past period */
+    minStartDate: LocalDate? = null,
+    /** Latest allowed start: today, or the first spend of a running period */
+    maxStartDate: LocalDate = LocalDate.now(),
+    onStartChange: (Date) -> Unit = {},
 ) {
+    var showStartPicker by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
@@ -217,6 +227,33 @@ fun BudgetConstructor(
 
         LaunchedEffect(Unit) {
             if (forceChange) focusRequester.requestFocus()
+        }
+
+        val startDay = startDate.toLocalDate()
+        ButtonRow(
+            icon = painterResource(R.drawable.ic_calendar),
+            text = if (startDay == LocalDate.now()) {
+                stringResource(R.string.start_date_today)
+            } else {
+                stringResource(
+                    R.string.start_date_label,
+                    prettyDate(startDate, showTime = false, forceShowDate = true),
+                )
+            },
+            onClick = { showStartPicker = true },
+        )
+
+        if (showStartPicker) {
+            DatePickerDialog(
+                initDate = startDay,
+                disableBeforeDate = minStartDate,
+                disableAfterDate = maxStartDate,
+                onSelect = {
+                    showStartPicker = false
+                    onStartChange(it.toDate())
+                },
+                onClose = { showStartPicker = false },
+            )
         }
 
         ButtonRow(

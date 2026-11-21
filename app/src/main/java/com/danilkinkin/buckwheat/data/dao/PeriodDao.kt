@@ -11,6 +11,9 @@ interface PeriodDao {
     @Query("SELECT * FROM periods ORDER BY finishDate DESC, uid DESC")
     fun getAll(): LiveData<List<Period>>
 
+    @Query("SELECT * FROM periods")
+    fun getAllSync(): List<Period>
+
     @Query("SELECT COUNT(*) FROM periods")
     fun count(): Int
 

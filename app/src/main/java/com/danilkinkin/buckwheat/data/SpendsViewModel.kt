@@ -100,18 +100,21 @@ class SpendsViewModel @Inject constructor(
 
     // Budget handling
 
-    fun setBudget(newBudget: BigDecimal, newFinishDate: Date) {
+    fun setBudget(newBudget: BigDecimal, newFinishDate: Date, startDate: Date? = null) {
         viewModelScope.launch {
-            spendsRepository.setBudget(newBudget, newFinishDate)
+            spendsRepository.setBudget(newBudget, newFinishDate, startDate)
 
             requireSetBudget.value = false
             periodFinished.value = false
         }
     }
 
-    fun changeBudget(newBudget: BigDecimal, newFinishDate: Date) {
+    suspend fun importHistory(rows: List<com.danilkinkin.buckwheat.wallet.HistoryRow>) =
+        spendsRepository.importHistory(rows)
+
+    fun changeBudget(newBudget: BigDecimal, newFinishDate: Date, startDate: Date? = null) {
         viewModelScope.launch {
-            spendsRepository.changeBudget(newBudget, newFinishDate)
+            spendsRepository.changeBudget(newBudget, newFinishDate, startDate)
 
             requireSetBudget.value = false
             periodFinished.value = false

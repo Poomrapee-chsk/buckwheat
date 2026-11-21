@@ -16,6 +16,7 @@ data class CurrentPeriodInfo(
     val startDate: Date,
     val finishDate: Date?,
     val currency: String,
+    val budget: java.math.BigDecimal? = null,
 )
 
 /**
@@ -25,7 +26,7 @@ data class CurrentPeriodInfo(
 object HistoryCsv {
     val HEADER = listOf(
         "date", "amount", "currency", "tag", "treat", "period_start", "period_end", "period",
-        "payee", "reference", "note",
+        "payee", "reference", "note", "period_budget",
     )
 
     /** Excel needs it to read the file as UTF-8, otherwise Thai text is garbled */
@@ -73,6 +74,7 @@ object HistoryCsv {
                     slipDetails[spent.uid]?.payee.orEmpty(),
                     slipDetails[spent.uid]?.reference.orEmpty(),
                     slipDetails[spent.uid]?.note.orEmpty(),
+                    (if (isCurrent) current?.budget else period?.budget)?.toPlainString().orEmpty(),
                 )
             }
     }

@@ -68,6 +68,83 @@ class SpendsRepository @Inject constructor(
             slipDetailsDao.getUsedReferences().toSet()
         }
 
+    data class HistoryImportResult(val added: Int, val duplicates: Int, val skipped: Int)
+
+    /**
+     * Adds spends from an "all periods" CSV export, skipping ones already here: same slip reference,
+     * or same minute, amount and tag. Spends dated in the current period go into it (and its budget
+     * math, like spends added by hand); older ones go into their past period, recreated from the CSV's
+     * period dates and budget when it isn't here anymore.
+     */
+    suspend fun importHistory(rows: List<com.danilkinkin.buckwheat.wallet.HistoryRow>): HistoryImportResult {
+        val zone = java.time.ZoneId.systemDefault()
+        val toDate = { t: java.time.LocalDateTime -> Date.from(t.atZone(zone).toInstant()) }
+        val dayOf = { d: Date -> d.toInstant().atZone(zone).toLocalDate() }
+
+        val now = getCurrentDateUseCase()
+        val prefs = context.budgetDataStore.data.first()
+        val currentStart = prefs[startPeriodDateStoreKey]?.takeIf { prefs[budgetStoreKey] != null }?.let { Date(it) }
+
+        val (existing, usedReferences) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            transactionDao.getAllSpendsSync() to slipDetailsDao.getUsedReferences().toSet()
+        }
+        val toLocal = { d: Date -> java.time.LocalDateTime.ofInstant(d.toInstant(), zone) }
+        val plan = com.danilkinkin.buckwheat.wallet.HistoryImportPlan.make(
+            rows = rows,
+            existing = existing.map { com.danilkinkin.buckwheat.wallet.HistoryImportPlan.key(toLocal(it.date), it.value, it.comment) }.toSet(),
+            usedReferences = usedReferences,
+            currentStart = currentStart?.let(dayOf),
+            now = toLocal(now),
+        )
+        val toCurrent = plan.toCurrent
+        val toPast = plan.toPast
+
+        val details = { row: com.danilkinkin.buckwheat.wallet.HistoryRow, uid: Int ->
+            if (row.payee != null || row.reference != null || row.note != null) {
+                slipDetailsDao.insert(SlipDetails(uid, payee = row.payee, reference = row.reference, note = row.note))
+            }
+        }
+        val spend = { row: com.danilkinkin.buckwheat.wallet.HistoryRow, periodId: Int? ->
+            Transaction(
+                type = TransactionType.SPENT,
+                value = row.amount,
+                date = toDate(row.date),
+                comment = row.tag,
+                manualTreat = row.manualTreat,
+                automaticTreat = row.automaticTreat,
+                periodId = periodId,
+            )
+        }
+
+        db.withTransaction {
+            val periods = periodDao.getAllSync()
+            toPast.forEach { (range, periodRows) ->
+                val (start, end) = range
+                val periodId = periods.firstOrNull { p ->
+                    dayOf(p.startDate) == start && (dayOf(p.finishDate) == end || p.actualFinishDate?.let(dayOf) == end)
+                }?.uid ?: periodDao.insert(
+                    Period(
+                        budget = periodRows.firstNotNullOfOrNull { it.periodBudget }
+                            ?: periodRows.fold(BigDecimal.ZERO) { sum, r -> sum + r.amount },
+                        startDate = toDate(start.atStartOfDay()),
+                        finishDate = Date(toDate(end.atStartOfDay()).time + DAY - 1000),
+                        actualFinishDate = null,
+                        currency = periodRows.first().currency,
+                        archivedAt = now,
+                    )
+                ).toInt()
+
+                periodRows.forEach { row -> details(row, transactionDao.insertOne(spend(row, periodId)).toInt()) }
+            }
+        }
+
+        // Current period: through the budget math, like a spend added by hand on that day
+        toCurrent.forEach { row -> details(row, addSpent(spend(row, null))) }
+
+        Log.d("SpendsRepository", "Imported history [current: ${toCurrent.size} past: ${plan.added - toCurrent.size} duplicates: ${plan.duplicates} skipped: ${plan.skipped}]")
+        return HistoryImportResult(plan.added, plan.duplicates, plan.skipped)
+    }
+
     /** Adds a spend imported from a slip, with what was read from the slip */
     suspend fun addSpentFromSlip(transaction: Transaction, details: SlipDetails): Int {
         val uid = addSpent(transaction)
@@ -294,7 +371,14 @@ class SpendsRepository @Inject constructor(
         }
     }
 
-    suspend fun setBudget(newBudget: BigDecimal, newFinishDate: Date) {
+    /**
+     * @param startDate first day of the period, today or earlier. A period can start in the past,
+     *   e.g. on the 1st of the month: spends of its past days (added by hand, from slips or a CSV)
+     *   then count as already spent, and the rest is spread over the days left
+     */
+    suspend fun setBudget(newBudget: BigDecimal, newFinishDate: Date, startDate: Date? = null) {
+        val start = roundToDay(startDate?.takeIf { it.before(getCurrentDateUseCase()) } ?: getCurrentDateUseCase())
+
         // Snapshot the finishing period into history and seed the new period in a
         // single DB transaction, so a crash can never leave the datastore pointing
         // at a period whose transactions have all been archived away.
@@ -315,7 +399,7 @@ class SpendsRepository @Inject constructor(
                 Transaction(
                     TransactionType.INCOME,
                     newBudget,
-                    getCurrentDateUseCase(),
+                    if (start.before(roundToDay(getCurrentDateUseCase()))) start else getCurrentDateUseCase(),
                 )
             )
         }
@@ -326,7 +410,7 @@ class SpendsRepository @Inject constructor(
             it[dailyBudgetStoreKey] = BigDecimal.ZERO.toString()
             it[spentFromDailyBudgetStoreKey] = BigDecimal.ZERO.toString()
             it[lastChangeDailyBudgetDateStoreKey] = roundToDay(getCurrentDateUseCase()).time
-            it[startPeriodDateStoreKey] = roundToDay(getCurrentDateUseCase()).time
+            it[startPeriodDateStoreKey] = start.time
             it[finishPeriodDateStoreKey] = Date(roundToDay(newFinishDate).time + DAY - 1000).time
             it.remove(finishPeriodActualDateStoreKey)
 
@@ -345,9 +429,13 @@ class SpendsRepository @Inject constructor(
         hideOverspendingWarn(false)
     }
 
-    suspend fun changeBudget(newBudget: BigDecimal, newFinishDate: Date) {
+    /** @param startDate new first day of the period, or null to keep it */
+    suspend fun changeBudget(newBudget: BigDecimal, newFinishDate: Date, startDate: Date? = null) {
         context.budgetDataStore.edit {
             it[budgetStoreKey] = newBudget.toString()
+            startDate?.let { start ->
+                it[startPeriodDateStoreKey] = roundToDay(start).coerceAtMost(roundToDay(getCurrentDateUseCase())).time
+            }
             it[lastChangeDailyBudgetDateStoreKey] = roundToDay(getCurrentDateUseCase()).time
             it[finishPeriodDateStoreKey] = Date(roundToDay(newFinishDate).time + DAY - 1000).time
             it.remove(finishPeriodActualDateStoreKey)
