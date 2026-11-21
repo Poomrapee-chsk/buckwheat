@@ -36,7 +36,7 @@ object SlipParser {
     )
     private val PAYEE_LABELS = listOf(
         "ไปยัง", "ไปที่", "ผู้รับ", "ผู้รับเงิน", "ถึง", "ร้านค้า", "ชื่อร้าน",
-        "to", "recipient", "payee", "merchant", "pay to",
+        "to", "recipient", "payee", "pay to",
     )
     private val REFERENCE_LABELS = listOf(
         "เลขที่รายการ", "รหัสอ้างอิง", "เลขที่อ้างอิง", "หมายเลขอ้างอิง", "รหัสรายการ",
@@ -45,6 +45,8 @@ object SlipParser {
     private val OTHER_LABELS = listOf(
         "จาก", "ผู้โอน", "ผู้จ่าย", "from", "เลขที่รายการ", "รหัสอ้างอิง", "เลขที่อ้างอิง",
         "ref", "ref no", "reference", "transaction id", "วันที่", "date", "เวลา", "time",
+        // On K PLUS / Make slips a merchant *number*, not a name
+        "merchant", "merchant no", "merchantno", "merchant id",
     )
 
     private val THAI_MONTHS = listOf(
@@ -93,7 +95,7 @@ object SlipParser {
             dateTime = reconcileDate(findDateTime(lines), findDateWithoutDay(lines), imageDate),
             // A payee is a name: "RE" under a blurred "MERCHANT NO" line is not
             payee = findLabeledValue(lines, PAYEE_LABELS)
-                ?.takeIf { value -> value.count { isWordChar(it) } >= 3 }
+                ?.takeIf { value -> looksLikeName(value) }
                 ?: findUnlabeledPayee(withGaps),
             note = findLabeledValue(lines, NOTE_LABELS),
             reference = findLabeledValue(lines, REFERENCE_LABELS)?.let { referenceIn(it) },
@@ -378,6 +380,13 @@ object SlipParser {
 
     // The sender's bank and account type, not the payee: "ธ.กสิกรไทย", "by KBank", "พร้อมเพย์"
     private val BANK_LINE = Regex("^ธ\\.|ธนาคาร|bank|พร้อมเพย์|promptpay", RegexOption.IGNORE_CASE)
+
+    /** At least 3 letters, and mostly letters: "RE ./บอหชบมอบน~" is OCR noise, not a name */
+    private fun looksLikeName(value: String): Boolean {
+        val wordChars = value.count { isWordChar(it) }
+        val other = value.count { !isWordChar(it) && !it.isWhitespace() && !it.isDigit() && it !in "-.()&'" }
+        return wordChars >= 3 && other <= 1 && wordChars >= value.count { !it.isWhitespace() } * 0.7
+    }
 
     /** Letters plus Thai vowel and tone marks, which are not letters for [Char.isLetter] */
     private fun isWordChar(c: Char): Boolean = c.isLetter() ||

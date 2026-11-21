@@ -23,7 +23,8 @@ data class OcrLine(
 /**
  * On-device OCR for payment slips, plain Kotlin on top of ONNX Runtime:
  *
- * 1. Text detection: PaddleOCR PP-OCRv5 mobile DB detector finds text regions.
+ * 1. Text detection: PaddleOCR PP-OCRv6 tiny DB detector finds text regions. Chosen over PP-OCRv5
+ *    mobile with tools/slipbench on 50 real K PLUS slips: dates found 97.5% vs 85%, 1.5x faster.
  * 2. Recognition: AksonOCR-Lite Thai + English recognizer reads each region. It predicts whole Thai
  *    grapheme clusters (consonant with its vowels and tone marks), so marks can't come out scrambled.
  * 3. Layout: regions are joined into text rows for [com.danilkinkin.buckwheat.slip.SlipParser].

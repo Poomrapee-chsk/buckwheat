@@ -5,14 +5,15 @@ Runs the app's own slip reading code (`SlipOcrEngine`, `SlipLayout`, `SlipParser
 
 | id | text finder | text reader |
 |---|---|---|
-| `current` | PaddleOCR v5 mobile (4.8 MB) | AksonOCR-Lite (4.5 MB): **the app now** |
-| `tinydet` | iApp PP-OCRv6 tiny (1.8 MB) | AksonOCR-Lite |
-| `iapp` | iApp PP-OCRv6 tiny | iApp OpenThai2.1-OCR-Text (2.4 MB) |
-| `iapprec` | PaddleOCR v5 mobile | iApp OpenThai2.1-OCR-Text |
+| `current` | PaddleOCR PP-OCRv6 tiny (1.8 MB) | AksonOCR-Lite (4.5 MB): **the app now** |
+| `v5det` | PaddleOCR PP-OCRv5 mobile (4.8 MB) | AksonOCR-Lite: the app before |
+| `iapp` | PaddleOCR PP-OCRv6 tiny | iApp OpenThai2.1-OCR-Text (2.4 MB) |
+| `iapprec` | PaddleOCR PP-OCRv5 mobile | iApp OpenThai2.1-OCR-Text |
 
-The iApp models ([OpenThai2.1-OCR-Text-20261118](https://huggingface.co/iapp/OpenThai2.1-OCR-Text-20261118),
-Apache-2.0) are downloaded on the first run from Hugging Face, pinned to release `v2.1.4` and checked by SHA-256,
-into `tools/slipbench/models/` (ignored by git). Everything else runs offline. Slip images never leave your PC.
+The models not in the app are downloaded on the first run from Hugging Face, pinned and checked by SHA-256, into
+`tools/slipbench/models/` (ignored by git): iApp's
+([OpenThai2.1-OCR-Text-20261118](https://huggingface.co/iapp/OpenThai2.1-OCR-Text-20261118), release `v2.1.4`) and
+[PP-OCRv5_mobile_det](https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx), all Apache-2.0. Everything else runs offline. Slip images never leave your PC.
 
 ## Run
 

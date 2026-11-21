@@ -51,6 +51,11 @@ private val IAPP_FILES = mapOf(
     "rec_dict.txt" to "259ef2636cec0eeae225ae9fd9a63fa9305285650c22d7ec34fe8a82b24c2f1a",
 )
 
+/** The app's text detector before PP-OCRv6 tiny, for comparison; pinned commit */
+private const val V5_DET_URL =
+    "https://huggingface.co/PaddlePaddle/PP-OCRv5_mobile_det_onnx/resolve/e6f4fa85f00e168c862bc462aebca69eef9b3d3d/inference.onnx"
+private const val V5_DET_SHA256 = "a431985659dc921974177a95adcfbb90fd9e51989a5e04d70d0b75f597b6e61d"
+
 /** Same downscaling as the app (SlipTextRecognizer) */
 private const val MAX_SIDE = 2400
 
@@ -183,14 +188,15 @@ private fun setups(): List<Setup> {
     val aksonCharset = File(app, "rec_charset.txt").readText(Charsets.UTF_8).removeSuffix("\n").split('\n')
 
     val iapp = downloadIapp()
+    val v5det = download(File(iapp.parentFile, "PP-OCRv5_mobile_det/inference.onnx"), V5_DET_URL, V5_DET_SHA256)
     val iappCharset = listOf("") + File(iapp, "rec_dict.txt").readText(Charsets.UTF_8).removeSuffix("\n").split('\n') + listOf(" ")
     check(iappCharset.size == 530) { "Unexpected iApp charset size ${iappCharset.size}" }
 
     return listOf(
-        Setup("current", "PaddleOCR v5 mobile det + AksonOCR-Lite rec (the app now)", File(app, "det.onnx"), akson, aksonCharset, false),
-        Setup("tinydet", "iApp PP-OCRv6 tiny det + AksonOCR-Lite rec", File(iapp, "det.onnx"), akson, aksonCharset, false),
-        Setup("iapp", "iApp PP-OCRv6 tiny det + iApp OpenThai rec", File(iapp, "det.onnx"), File(iapp, "rec.onnx"), iappCharset, true),
-        Setup("iapprec", "PaddleOCR v5 mobile det + iApp OpenThai rec", File(app, "det.onnx"), File(iapp, "rec.onnx"), iappCharset, true),
+        Setup("current", "PP-OCRv6 tiny det + AksonOCR-Lite rec (the app now)", File(app, "det.onnx"), akson, aksonCharset, false),
+        Setup("v5det", "PP-OCRv5 mobile det + AksonOCR-Lite rec (the app before)", v5det, akson, aksonCharset, false),
+        Setup("iapp", "PP-OCRv6 tiny det + iApp OpenThai rec", File(iapp, "det.onnx"), File(iapp, "rec.onnx"), iappCharset, true),
+        Setup("iapprec", "PP-OCRv5 mobile det + iApp OpenThai rec", v5det, File(iapp, "rec.onnx"), iappCharset, true),
     )
 }
 
@@ -198,19 +204,20 @@ private fun downloadIapp(): File {
     val dir = listOf(File("tools/slipbench"), File(".")).first { File(it, "build.gradle.kts").exists() }
         .let { File(it, "models/iapp-OpenThai2.1-OCR-Text-v2.1.4") }
     dir.mkdirs()
-    val client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
-    IAPP_FILES.forEach { (name, sha256) ->
-        val file = File(dir, name)
-        if (file.exists() && sha256(file) == sha256) return@forEach
-        println("Downloading $name from Hugging Face...")
-        val response = client.send(
-            HttpRequest.newBuilder(URI("$IAPP_REPO/$name")).build(),
-            HttpResponse.BodyHandlers.ofFile(file.toPath()),
-        )
-        check(response.statusCode() == 200) { "Download of $name failed: HTTP ${response.statusCode()}" }
-        check(sha256(file) == sha256) { "$name doesn't match the tested version (SHA-256)" }
-    }
+    IAPP_FILES.forEach { (name, sha256) -> download(File(dir, name), "$IAPP_REPO/$name", sha256) }
     return dir
+}
+
+/** Downloads [url] to [file] unless it's already there; checks it's the tested version */
+private fun download(file: File, url: String, sha256: String): File {
+    if (file.exists() && sha256(file) == sha256) return file
+    file.parentFile.mkdirs()
+    println("Downloading ${file.name} from Hugging Face...")
+    val client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NORMAL).build()
+    val response = client.send(HttpRequest.newBuilder(URI(url)).build(), HttpResponse.BodyHandlers.ofFile(file.toPath()))
+    check(response.statusCode() == 200) { "Download of ${file.name} failed: HTTP ${response.statusCode()}" }
+    check(sha256(file) == sha256) { "${file.name} doesn't match the tested version (SHA-256)" }
+    return file
 }
 
 private fun sha256(file: File): String =
