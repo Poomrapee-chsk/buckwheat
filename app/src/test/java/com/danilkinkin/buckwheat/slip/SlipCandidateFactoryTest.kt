@@ -81,10 +81,14 @@ class SlipCandidateFactoryTest {
         assertTrue(candidate.selected)
         assertFalse(candidate.canBeAddedDirectly)
 
-        val row = candidate.toHistoryRow(BigDecimal("5000"))
+        val row = candidate.toHistoryRow(BigDecimal("5000"), "Other")
         assertEquals(BigDecimal("5000"), row.periodBudget)
         assertEquals(null, row.periodStart)
         assertEquals("IT CITY PUBLIC", row.payee)
+        // No tag found: the default
+        assertEquals("", candidate.tag)
+        assertEquals("Other", row.tag)
+        assertEquals("Other", candidate.toTransaction("Other").comment)
     }
 
     @Test

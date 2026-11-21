@@ -80,11 +80,12 @@ data class SlipCandidate(
         mediaId = mediaId,
     )
 
-    fun toHistoryRow(pastPeriodBudget: BigDecimal?) = com.danilkinkin.buckwheat.wallet.HistoryRow(
+    /** @param defaultTag used when the tag is left empty, e.g. "Other" */
+    fun toHistoryRow(pastPeriodBudget: BigDecimal?, defaultTag: String) = com.danilkinkin.buckwheat.wallet.HistoryRow(
         date = java.time.LocalDateTime.ofInstant(date.toInstant(), java.time.ZoneId.systemDefault()),
         amount = amount!!,
         currency = "",
-        tag = tag.trim(),
+        tag = tag.trim().ifEmpty { defaultTag },
         manualTreat = false,
         automaticTreat = false,
         periodStart = null,
@@ -97,11 +98,12 @@ data class SlipCandidate(
         mediaId = mediaId,
     )
 
-    fun toTransaction() = Transaction(
+    /** @param defaultTag used when the tag is left empty, e.g. "Other" */
+    fun toTransaction(defaultTag: String) = Transaction(
         type = TransactionType.SPENT,
         value = amount!!,
         date = date,
-        comment = tag.trim(),
+        comment = tag.trim().ifEmpty { defaultTag },
     )
 }
 

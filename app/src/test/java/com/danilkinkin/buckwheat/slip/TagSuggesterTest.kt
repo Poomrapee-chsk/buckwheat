@@ -38,8 +38,9 @@ class TagSuggesterTest {
     }
 
     @Test
-    fun fallsBackToNote() {
-        assertEquals("ค่าเช่า", TagSuggester.suggest("ค่าเช่า", "นาย สมชาย", tags, emptyMap()))
+    fun noMatchLeavesTheTagEmpty() {
+        // The note isn't a tag: the spend gets the default tag ("Other") when added
+        assertEquals("", TagSuggester.suggest("ค่าเช่า", "นาย สมชาย", tags, emptyMap()))
     }
 
     @Test

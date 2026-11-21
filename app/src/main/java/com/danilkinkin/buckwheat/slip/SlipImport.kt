@@ -260,12 +260,23 @@ fun SlipImport(
                         },
                         modifier = Modifier.fillMaxWidth(),
                     )
+                    OutlinedButton(onClick = { slipImportViewModel.stopReading() }) {
+                        Text(stringResource(R.string.slip_import_stop))
+                    }
+                }
+
+                val unticked = candidates.count { !(it.selected && it.canBeAdded && it.amount != null) }
+                if (unticked > 0 && !slipImportViewModel.isReading) {
+                    TextButton(onClick = { slipImportViewModel.discardUnselected() }) {
+                        Text(pluralStringResource(R.plurals.slip_import_discard_unticked, unticked, unticked))
+                    }
                 }
 
                 candidates.forEach { candidate ->
                     SlipCandidateCard(
                         candidate = candidate,
                         onChange = { slipImportViewModel.update(it) },
+                        onDiscard = { slipImportViewModel.discard(candidate) },
                     )
                 }
 
@@ -314,6 +325,7 @@ fun SlipImport(
 private fun SlipCandidateCard(
     candidate: SlipCandidate,
     onChange: (SlipCandidate) -> Unit,
+    onDiscard: () -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Row(
@@ -331,10 +343,20 @@ private fun SlipCandidateCard(
                     .padding(top = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    text = prettyDate(candidate.date, showTime = true, forceShowDate = true),
-                    style = MaterialTheme.typography.labelLarge,
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        modifier = Modifier.weight(1f),
+                        text = prettyDate(candidate.date, showTime = true, forceShowDate = true),
+                        style = MaterialTheme.typography.labelLarge,
+                    )
+                    IconButton(modifier = Modifier.size(32.dp), onClick = onDiscard) {
+                        Icon(
+                            painter = painterResource(R.drawable.ic_close),
+                            contentDescription = stringResource(R.string.slip_import_discard),
+                            modifier = Modifier.size(18.dp),
+                        )
+                    }
+                }
                 val details = listOfNotNull(candidate.payee, candidate.note).joinToString(" · ")
                 if (details.isNotEmpty()) {
                     Text(
@@ -358,6 +380,8 @@ private fun SlipCandidateCard(
                         value = candidate.tag,
                         onValueChange = { onChange(candidate.copy(tag = it)) },
                         label = { Text(stringResource(R.string.slip_import_tag)) },
+                        // Empty: saved with the default tag
+                        placeholder = { Text(stringResource(R.string.slip_default_tag)) },
                         singleLine = true,
                     )
                 }
