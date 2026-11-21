@@ -35,6 +35,8 @@ import com.danilkinkin.buckwheat.recalcBudget.RecalcBudget
 import com.danilkinkin.buckwheat.settings.*
 import com.danilkinkin.buckwheat.slip.SLIP_IMPORT_SHEET
 import com.danilkinkin.buckwheat.slip.SlipImport
+import com.danilkinkin.buckwheat.slip.watch.SLIP_FOLDERS_SHEET
+import com.danilkinkin.buckwheat.slip.watch.SlipFolders
 import com.danilkinkin.buckwheat.wallet.*
 import kotlinx.coroutines.launch
 import java.util.*
@@ -173,6 +175,15 @@ fun BottomSheets(
 
     BottomSheetWrapper(name = SLIP_IMPORT_SHEET) { state ->
         SlipImport(
+            activityResultRegistryOwner = activityResultRegistryOwner,
+            onClose = {
+                coroutineScope.launch { state.hide() }
+            },
+        )
+    }
+
+    BottomSheetWrapper(name = SLIP_FOLDERS_SHEET) { state ->
+        SlipFolders(
             activityResultRegistryOwner = activityResultRegistryOwner,
             onClose = {
                 coroutineScope.launch { state.hide() }

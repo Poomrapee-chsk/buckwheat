@@ -1,7 +1,9 @@
 package com.danilkinkin.buckwheat.slip
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.math.BigDecimal
 import java.time.LocalDateTime
@@ -109,6 +111,22 @@ class SlipParserTest {
         )
         assertEquals(BigDecimal("89.00"), slip.amount)
         assertEquals(LocalDateTime.of(2026, 11, 5, 10, 20), slip.dateTime)
+    }
+
+    @Test
+    fun slipsAreRecognizedAsSlips() {
+        listOf("kbank", "scb", "english", "ktb", "kbank_real_matcha", "kbank_real_amazon", "make_real_itcity")
+            .forEach { assertTrue(it, SlipParser.looksLikeSlip(fixture(it))) }
+    }
+
+    @Test
+    fun otherScreenshotsAreNotSlips() {
+        // Chat with a price and a date
+        assertFalse(SlipParser.looksLikeSlip("แม่\nพรุ่งนี้ซื้อกาแฟ 120.00 บาท นะ\n21 พ.ย. 69 16:39"))
+        // Receipt-like but no date
+        assertFalse(SlipParser.looksLikeSlip("โอนเงินสำเร็จ\nจำนวน: 120.00 บาท"))
+        // Random photo, OCR noise
+        assertFalse(SlipParser.looksLikeSlip("aA ๐ ๕\n  ~~ 7"))
     }
 
     @Test
