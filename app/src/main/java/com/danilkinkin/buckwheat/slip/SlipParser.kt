@@ -13,6 +13,8 @@ data class SlipData(
     val dateTime: LocalDateTime? = null,
     val payee: String? = null,
     val note: String? = null,
+    /** Bank transaction reference, unique per transfer */
+    val reference: String? = null,
 )
 
 /**
@@ -35,6 +37,10 @@ object SlipParser {
     private val PAYEE_LABELS = listOf(
         "ไปยัง", "ไปที่", "ผู้รับ", "ผู้รับเงิน", "ถึง", "ร้านค้า", "ชื่อร้าน",
         "to", "recipient", "payee", "merchant", "pay to",
+    )
+    private val REFERENCE_LABELS = listOf(
+        "เลขที่รายการ", "รหัสอ้างอิง", "เลขที่อ้างอิง", "หมายเลขอ้างอิง", "รหัสรายการ",
+        "transaction id", "transaction no", "ref no", "ref", "reference", "reference no",
     )
     private val OTHER_LABELS = listOf(
         "จาก", "ผู้โอน", "ผู้จ่าย", "from", "เลขที่รายการ", "รหัสอ้างอิง", "เลขที่อ้างอิง",
@@ -76,6 +82,7 @@ object SlipParser {
                 ?.takeIf { value -> value.count { isWordChar(it) } >= 3 }
                 ?: findUnlabeledPayee(withGaps),
             note = findLabeledValue(lines, NOTE_LABELS),
+            reference = findLabeledValue(lines, REFERENCE_LABELS)?.let { referenceIn(it) },
         )
     }
 
@@ -161,7 +168,7 @@ object SlipParser {
     }
 
     private fun isAnyLabel(line: String): Boolean =
-        lineLabel(line, AMOUNT_LABELS + FEE_LABELS + NOTE_LABELS + PAYEE_LABELS + OTHER_LABELS) != null
+        lineLabel(line, AMOUNT_LABELS + FEE_LABELS + NOTE_LABELS + PAYEE_LABELS + REFERENCE_LABELS + OTHER_LABELS) != null
 
     private fun findLabeledValue(lines: List<String>, labels: List<String>): String? {
         lines.forEachIndexed { index, line ->
@@ -179,6 +186,18 @@ object SlipParser {
 
     private fun cleanValue(value: String): String? =
         value.replace(Regex("""\s{2,}"""), " ").trim().takeIf { it.length >= 2 }
+
+    // ---- reference ----
+
+    private val REFERENCE_TOKEN = Regex("[A-Za-z0-9]{8,}")
+
+    /** The ID in a reference value: 8+ letters and digits, at least 4 of them digits */
+    private fun referenceIn(value: String): String? =
+        REFERENCE_TOKEN.findAll(value)
+            .map { it.value }
+            .filter { token -> token.count { it.isDigit() } >= 4 }
+            .maxByOrNull { it.length }
+            ?.uppercase()
 
     // ---- amount ----
 

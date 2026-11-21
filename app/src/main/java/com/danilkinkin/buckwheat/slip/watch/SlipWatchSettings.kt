@@ -108,6 +108,8 @@ class SlipWatchSettings @Inject constructor(
         .put("payee", candidate.payee ?: JSONObject.NULL)
         .put("note", candidate.note ?: JSONObject.NULL)
         .put("warnings", JSONArray(candidate.warnings.map { it.name }))
+        .put("reference", candidate.reference ?: JSONObject.NULL)
+        .put("rawText", candidate.rawText)
 
     private fun pendingFromJson(json: JSONObject): SlipCandidate? = try {
         val warnings = json.optJSONArray("warnings")
@@ -123,6 +125,8 @@ class SlipWatchSettings @Inject constructor(
                 .toSet(),
             selected = true,
             mediaId = json.getLong("mediaId"),
+            reference = json.optString("reference").takeIf { !json.isNull("reference") && it.isNotEmpty() },
+            rawText = json.optString("rawText"),
         )
     } catch (e: Exception) {
         null

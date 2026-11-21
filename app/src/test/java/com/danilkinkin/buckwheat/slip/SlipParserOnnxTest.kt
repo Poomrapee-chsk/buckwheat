@@ -44,6 +44,16 @@ class SlipParserOnnxTest {
     )
 
     @Test
+    fun references() {
+        assertEquals("016325143212ATF04567", parse("kbank").reference)
+        assertEquals("202611200915ABC1234", parse("scb").reference)
+        assertEquals("FT26323ABCD", parse("english").reference)
+        // Blurred on the real slips
+        assertEquals(null, parse("kbank_real_matcha").reference)
+        assertEquals(null, parse("make_real_itcity").reference)
+    }
+
+    @Test
     fun synthetic() {
         check("kbank", "120.00", LocalDateTime.of(2026, 11, 21, 14, 32), "ร้าน กาแฟดี", "กาแฟเย็น")
         check("scb", "65.00", LocalDateTime.of(2026, 11, 20, 9, 15), "7-Eleven", "ข้าวเช้า")

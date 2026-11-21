@@ -1,6 +1,7 @@
 package com.danilkinkin.buckwheat.wallet
 
 import com.danilkinkin.buckwheat.data.entities.Period
+import com.danilkinkin.buckwheat.data.entities.SlipDetails
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 import org.junit.Assert.assertEquals
@@ -42,12 +43,20 @@ class HistoryCsvTest {
             Transaction(TransactionType.INCOME, BigDecimal("9000"), date(2026, 11, 1)),
         )
 
-        val rows = HistoryCsv.rows(spends, listOf(pastPeriod), current)
+        // Imported from a slip; uids as Room would assign them
+        spends[0].uid = 11
+        spends[1].uid = 5
+        val details = mapOf(11 to SlipDetails(11, payee = "Kawa Matcha Teahouse", reference = "016325143212ATF04567"))
+
+        val rows = HistoryCsv.rows(spends, listOf(pastPeriod), current, details)
 
         assertEquals(
             listOf(
-                listOf("2026-10-27 19:10", "1330.00", "THB", "Gadgets", "manual", "2026-10-01", "2026-10-28", "past"),
-                listOf("2026-11-21 16:39", "120.00", "THB", "Matcha", "", "2026-11-01", "2026-11-30", "current"),
+                listOf("2026-10-27 19:10", "1330.00", "THB", "Gadgets", "manual", "2026-10-01", "2026-10-28", "past", "", "", ""),
+                listOf(
+                    "2026-11-21 16:39", "120.00", "THB", "Matcha", "", "2026-11-01", "2026-11-30", "current",
+                    "Kawa Matcha Teahouse", "016325143212ATF04567", "",
+                ),
             ),
             rows,
         )
@@ -56,10 +65,10 @@ class HistoryCsvTest {
     @Test
     fun writesBomHeaderAndQuotesCommas() {
         val writer = StringWriter()
-        HistoryCsv.write(writer, listOf(listOf("2026-11-21 16:39", "120.00", "THB", "ชา, นม", "", "", "", "current")))
+        HistoryCsv.write(writer, listOf(listOf("2026-11-21 16:39", "120.00", "THB", "ชา, นม", "", "", "", "current", "", "", "")))
         val text = writer.toString()
 
-        assertTrue(text.startsWith("﻿date,amount,currency,tag,treat,period_start,period_end,period"))
+        assertTrue(text.startsWith("﻿date,amount,currency,tag,treat,period_start,period_end,period,payee,reference,note"))
         assertTrue(text.contains("\"ชา, นม\""))
     }
 }

@@ -45,7 +45,7 @@ class SlipActionReceiver : BroadcastReceiver() {
         val factory = SlipCandidateFactory.load(deps.spendsRepository(), deps.tagMemory())
         if (!factory.stillAddable(slip)) return
 
-        deps.spendsRepository().addSpent(slip.toTransaction())
+        deps.spendsRepository().addSpentFromSlip(slip.toTransaction(), slip.toDetails())
         slip.payee?.let { deps.tagMemory().remember(mapOf(it to slip.tag)) }
         settings.removePending(listOf(mediaId))
 

@@ -54,6 +54,7 @@ fun rememberExportAllCSV(
                 try {
                     val spends = spendsViewModel.spendingHistory.asFlow().first()
                     val periods = spendsViewModel.periods.asFlow().first()
+                    val slipDetails = spendsViewModel.slipDetails.asFlow().first()
                     val budget = spendsViewModel.budget.asFlow().first()
                     // No current period after a full reset or before the first budget
                     val current = if (budget.signum() > 0) {
@@ -67,7 +68,7 @@ fun rememberExportAllCSV(
                     }
 
                     withContext(Dispatchers.IO) {
-                        val rows = HistoryCsv.rows(spends, periods, current)
+                        val rows = HistoryCsv.rows(spends, periods, current, slipDetails)
                         context.contentResolver.openOutputStream(uri)!!.writer().use {
                             HistoryCsv.write(it, rows)
                         }

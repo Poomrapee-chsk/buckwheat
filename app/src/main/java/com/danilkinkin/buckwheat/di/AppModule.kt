@@ -37,4 +37,8 @@ object AppModule {
     @Singleton
     @Provides
     fun providePeriodDao(db: DatabaseModule) = db.periodDao()
+
+    @Singleton
+    @Provides
+    fun provideSlipDetailsDao(db: DatabaseModule) = db.slipDetailsDao()
 }

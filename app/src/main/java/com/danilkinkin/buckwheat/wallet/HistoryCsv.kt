@@ -1,6 +1,7 @@
 package com.danilkinkin.buckwheat.wallet
 
 import com.danilkinkin.buckwheat.data.entities.Period
+import com.danilkinkin.buckwheat.data.entities.SlipDetails
 import com.danilkinkin.buckwheat.data.entities.Transaction
 import com.danilkinkin.buckwheat.data.entities.TransactionType
 import org.apache.commons.csv.CSVFormat
@@ -24,6 +25,7 @@ data class CurrentPeriodInfo(
 object HistoryCsv {
     val HEADER = listOf(
         "date", "amount", "currency", "tag", "treat", "period_start", "period_end", "period",
+        "payee", "reference", "note",
     )
 
     /** Excel needs it to read the file as UTF-8, otherwise Thai text is garbled */
@@ -33,6 +35,8 @@ object HistoryCsv {
         spends: List<Transaction>,
         periods: List<Period>,
         current: CurrentPeriodInfo?,
+        /** Details of spends imported from slips, keyed by transaction uid */
+        slipDetails: Map<Int, SlipDetails> = emptyMap(),
     ): List<List<String>> {
         val dateTime = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT)
         val day = SimpleDateFormat("yyyy-MM-dd", Locale.ROOT)
@@ -66,6 +70,9 @@ object HistoryCsv {
                     start?.let { day.format(it) }.orEmpty(),
                     end?.let { day.format(it) }.orEmpty(),
                     if (isCurrent) "current" else "past",
+                    slipDetails[spent.uid]?.payee.orEmpty(),
+                    slipDetails[spent.uid]?.reference.orEmpty(),
+                    slipDetails[spent.uid]?.note.orEmpty(),
                 )
             }
     }
