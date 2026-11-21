@@ -34,13 +34,23 @@ fun DatePicker(
     calendarState: CalendarState,
     onDayClicked: (date: LocalDate) -> Unit,
     modifier: Modifier = Modifier,
+    /** Month to show first, e.g. the start of a period that began months ago */
+    initialMonth: java.time.YearMonth? = null,
 ) {
     val calendarUiState = calendarState.calendarUiState.value
     val dayWidth = remember { mutableStateOf(CELL_SIZE) }
 
     val localDensity = LocalDensity.current
 
+    // Each month is a header, the days of the week and one item per week
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState(
+        initialFirstVisibleItemIndex = calendarState.listMonths
+            .takeWhile { initialMonth != null && it.yearMonth.isBefore(initialMonth) }
+            .sumOf { 2 + it.weeks.size }
+    )
+
     LazyColumn(
+        state = listState,
         modifier = modifier
             .onGloballyPositioned {
                 dayWidth.value = with(localDensity) { it.size.width.toDp() / 7 }

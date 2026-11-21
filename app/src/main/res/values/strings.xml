@@ -174,7 +174,7 @@
   <string name="slip_warning_unreadable">Couldn\'t read this image</string>
   <string name="slip_warning_no_amount">Amount not found, enter it</string>
   <string name="slip_warning_no_date">Date not found, today is used</string>
-  <string name="slip_warning_outside_period">Before the current budget period, can\'t be added</string>
+  <string name="slip_warning_outside_period">Before this budget period: goes into a past period</string>
   <string name="slip_warning_future">Date is in the future, can\'t be added</string>
   <string name="slip_warning_duplicate">Looks like a spend you already have</string>
   <string name="export_all_to_csv">Export all history to CSV</string>
@@ -194,7 +194,7 @@
     <item quantity="other">%d images</item>
   </plurals>
   <string name="slip_folders_scan_past">Scan past slips</string>
-  <string name="slip_folders_scan_past_description">Find slips saved in the chosen folders since a day in the current budget period</string>
+  <string name="slip_folders_scan_past_description">Find slips saved in the chosen folders since a day. Slips from before this budget period go into past periods</string>
   <string name="slip_folders_scan_from">From %1$s</string>
   <string name="slip_folders_scan">Scan</string>
   <plurals name="slip_import_skipped">
@@ -208,7 +208,7 @@
   <string name="slip_notification_review">Review</string>
   <string name="slip_notification_dismiss">Dismiss</string>
   <string name="slip_folders_import_past_title">Import past slips?</string>
-  <string name="slip_folders_import_past_description">Add slips already saved in %1$s to this budget period. You can check each one before it\'s added.</string>
+  <string name="slip_folders_import_past_description">Add slips already saved in %1$s. You can check each one before it\'s added; slips from before this budget period go into past periods.</string>
   <string name="slip_folders_import_past_confirm">Import</string>
   <string name="slip_folders_import_past_skip">Not now</string>
   <string name="export_current_period">Current period</string>
@@ -221,8 +221,6 @@
   <string name="slip_import_hide_text">Hide recognized text</string>
   <string name="slip_import_no_text">(no text was recognized)</string>
   <string name="slip_import_ocr_error">Slips can\'t be read on this phone: %1$s</string>
-  <string name="start_date_today">Starts today</string>
-  <string name="start_date_label">Starts %1$s</string>
   <string name="import_history_csv">Import history from CSV</string>
   <string name="import_history_csv_description">From an \"All periods\" export; what\'s already here is skipped</string>
   <plurals name="import_history_done">
@@ -231,4 +229,22 @@
   </plurals>
   <string name="import_history_not_history">This isn\'t an \"All periods\" history export</string>
   <string name="import_history_failed">Couldn\'t import the file</string>
+  <string name="slip_folders_scan_all">All slips</string>
+  <string name="slip_folders_scan_all_now">Scan all slips</string>
+  <string name="slip_past_budget_title">Older slips</string>
+  <plurals name="slip_past_budget_description">
+    <item quantity="one">%d slip is from before this budget period. It goes into the past period of its day; if there isn\'t one, a past period is made for its month, with this budget:</item>
+    <item quantity="other">%d slips are from before this budget period. They go into the past periods of their days; months without one get a past period with this budget:</item>
+  </plurals>
+  <string name="slip_past_budget_label">Budget per month</string>
+  <string name="slip_past_budget_add">Add</string>
+  <string name="select_period_title">Choose the budget period</string>
+  <plurals name="period_label">
+    <item quantity="one">%1$s – %2$s (%3$d day)</item>
+    <item quantity="other">%1$s – %2$s (%3$d days)</item>
+  </plurals>
+  <plurals name="period_days_left">
+    <item quantity="one">%d day left, including today</item>
+    <item quantity="other">%d days left, including today</item>
+  </plurals>
 </resources>

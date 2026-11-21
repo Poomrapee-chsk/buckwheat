@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.border
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ripple
 import androidx.compose.material3.MaterialTheme
@@ -69,12 +70,14 @@ private fun DayContainer(
         contentAlignment = Alignment.Center
     ) {
         if (current) {
+            // A ring, so today stays visible inside a selected period too
             Box(
                 modifier = modifier
                     .height(CELL_SIZE - 8.dp)
                     .width(CELL_SIZE - 8.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                    .border(
+                        width = 2.dp,
+                        color = MaterialTheme.colorScheme.primary,
                         shape = CircleShape,
                     )
             ) {
@@ -111,8 +114,8 @@ internal fun Day(
             text = day.dayOfMonth.toString(),
             style = MaterialTheme.typography.bodyMedium,
             color = when (true) {
-                current -> MaterialTheme.colorScheme.onPrimaryContainer
                 selected -> MaterialTheme.colorScheme.onPrimary
+                current -> MaterialTheme.colorScheme.primary
                 else -> MaterialTheme.colorScheme.onSurface.copy(alpha = if (disabled) 0.3F else 1F)
             },
         )

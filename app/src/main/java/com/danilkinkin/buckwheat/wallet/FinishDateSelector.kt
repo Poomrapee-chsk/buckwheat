@@ -30,33 +30,49 @@ import java.util.*
 const val FINISH_DATE_SELECTOR_SHEET = "finishDateSelector"
 
 @Composable
+/**
+ * The budget period in one calendar: past days (and today) pick the start, future days the end.
+ * Today is ringed. A start before today lets spends of the period's past days count in it.
+ */
 fun FinishDateSelector(
+    selectStartDate: Date? = null,
     selectDate: Date? = null,
+    /** Earliest start: the day after the last past period */
+    minStartDate: LocalDate? = null,
+    /** Latest start: today, or the first spend of a running period */
+    maxStartDate: LocalDate? = null,
     onBackPressed: () -> Unit,
-    onApply: (finishDate: Date) -> Unit,
+    onApply: (startDate: Date, finishDate: Date) -> Unit,
 ) {
     val context = LocalContext.current
     val localBottomSheetScrollState = LocalBottomSheetScrollState.current
+    val start = selectStartDate ?: Date()
 
     Surface(modifier = Modifier.fillMaxSize().padding(top = localBottomSheetScrollState.topPadding)) {
         val calendarState = remember {
             CalendarState(
                 context,
-                selectionMode = CalendarSelectionMode.RANGE,
-                selectDate = selectDate,
-                disableBeforeDate = Date(),
+                selectionMode = CalendarSelectionMode.PERIOD,
+                selectDate = start,
+                selectEndDate = selectDate,
+                disableBeforeDate = minStartDate?.toDate(),
+                startNotAfter = maxStartDate,
+                // Without a past period to stop at, offer a couple of years back
+                firstMonth = java.time.YearMonth.from(
+                    minStartDate ?: start.toLocalDate().minusYears(2)
+                ),
             )
-        }
-
-        LaunchedEffect(Unit) {
-            if (selectDate !== null) calendarState.setSelectedDay(selectDate.toLocalDate())
         }
 
         FinishDateSelectorContent(
             calendarState = calendarState,
+            initialMonth = java.time.YearMonth.from(start.toLocalDate()),
             onDayClicked = { calendarState.setSelectedDay(it) },
             onBackPressed = onBackPressed,
-            onApply = { onApply(calendarState.calendarUiState.value.selectedEndDate!!.toDate()) }
+            onApply = {
+                val state = calendarState.calendarUiState.value
+                onApply(state.selectedStartDate!!.toDate(), state.selectedEndDate!!.toDate())
+            }
         )
     }
 }
@@ -64,6 +80,7 @@ fun FinishDateSelector(
 @Composable
 private fun FinishDateSelectorContent(
     calendarState: CalendarState,
+    initialMonth: java.time.YearMonth?,
     onDayClicked: (LocalDate) -> Unit,
     onBackPressed: () -> Unit,
     onApply: () -> Unit,
@@ -73,6 +90,7 @@ private fun FinishDateSelectorContent(
         DatePicker(
             calendarState = calendarState,
             onDayClicked = onDayClicked,
+            initialMonth = initialMonth,
         )
     }
 }
@@ -128,7 +146,7 @@ private fun FinishDateSelectorTopAppBar(
                 Column {
                     Text(
                         text = if (!calendarState.calendarUiState.value.hasSelectedDates) {
-                            stringResource(R.string.select_finish_date_title)
+                            stringResource(R.string.select_period_title)
                         } else {
                             selectedDatesFormatted(calendarState)
                         },
@@ -168,6 +186,6 @@ private fun FinishDateSelectorTopAppBar(
 @Composable
 private fun PreviewDefault(){
     BuckwheatTheme {
-        FinishDateSelector(onBackPressed = {}, onApply = {})
+        FinishDateSelector(onBackPressed = {}, onApply = { _, _ -> })
     }
 }

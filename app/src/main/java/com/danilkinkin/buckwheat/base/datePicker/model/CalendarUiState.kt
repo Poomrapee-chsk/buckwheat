@@ -38,7 +38,10 @@ fun selectedDatesFormatted(state: CalendarState): String {
 
 enum class CalendarSelectionMode {
     SINGLE,
+    /** From today to a chosen day */
     RANGE,
+    /** A start on or before today and an end on or after it: past days pick the start, future days the end */
+    PERIOD,
 }
 
 data class CalendarUiState(
@@ -47,10 +50,13 @@ data class CalendarUiState(
     val selectedEndDate: LocalDate? = null,
     val disabledBefore: LocalDate? = LocalDate.now(),
     val disabledAfter: LocalDate? = null,
+    /** [CalendarSelectionMode.PERIOD]: past days after this can't be the start */
+    val startNotAfter: LocalDate? = null,
 ) {
 
     val hasSelectedDates: Boolean
         get() {
+            if (selectionMode == CalendarSelectionMode.PERIOD) return selectedStartDate != null && selectedEndDate != null
             return selectedEndDate != null || selectionMode == CalendarSelectionMode.SINGLE
         }
 
@@ -82,8 +88,11 @@ data class CalendarUiState(
     }
 
     fun isDisabledDay(date: LocalDate): Boolean {
+        val today = LocalDate.now()
         return (disabledBefore != null && date.isBefore(disabledBefore))
                 || (disabledAfter != null && date.isAfter(disabledAfter))
+                || (selectionMode == CalendarSelectionMode.PERIOD && startNotAfter != null &&
+                date.isAfter(startNotAfter) && date.isBefore(today))
     }
 
     fun getNumberSelectedDaysInWeek(currentWeekStartDate: LocalDate, month: YearMonth): Int {
@@ -191,6 +200,17 @@ data class CalendarUiState(
         } else {
             copy(selectedStartDate = newFrom, selectedEndDate = newTo)
         }
+    }
+
+    /**
+     * [CalendarSelectionMode.PERIOD]: a past day becomes the start, a future day the end; today
+     * becomes the start, or the end too when the period already starts today
+     */
+    fun selectPeriodDay(day: LocalDate, today: LocalDate = LocalDate.now()): CalendarUiState = when {
+        day.isBefore(today) -> copy(selectedStartDate = day)
+        day.isAfter(today) -> copy(selectedEndDate = day)
+        selectedStartDate == today -> copy(selectedEndDate = today)
+        else -> copy(selectedStartDate = today)
     }
 
     fun setDate(new: LocalDate?): CalendarUiState {

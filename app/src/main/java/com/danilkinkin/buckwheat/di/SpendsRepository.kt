@@ -88,6 +88,9 @@ class SpendsRepository @Inject constructor(
         val (existing, usedReferences) = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             transactionDao.getAllSpendsSync() to slipDetailsDao.getUsedReferences().toSet()
         }
+        val existingPeriods = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            periodDao.getAllSync().map { dayOf(it.startDate) to dayOf(it.actualFinishDate ?: it.finishDate) }
+        }
         val toLocal = { d: Date -> java.time.LocalDateTime.ofInstant(d.toInstant(), zone) }
         val plan = com.danilkinkin.buckwheat.wallet.HistoryImportPlan.make(
             rows = rows,
@@ -95,13 +98,16 @@ class SpendsRepository @Inject constructor(
             usedReferences = usedReferences,
             currentStart = currentStart?.let(dayOf),
             now = toLocal(now),
+            existingPeriods = existingPeriods,
         )
         val toCurrent = plan.toCurrent
         val toPast = plan.toPast
 
         val details = { row: com.danilkinkin.buckwheat.wallet.HistoryRow, uid: Int ->
-            if (row.payee != null || row.reference != null || row.note != null) {
-                slipDetailsDao.insert(SlipDetails(uid, payee = row.payee, reference = row.reference, note = row.note))
+            if (row.payee != null || row.reference != null || row.note != null || row.rawText.isNotEmpty()) {
+                slipDetailsDao.insert(
+                    SlipDetails(uid, payee = row.payee, reference = row.reference, note = row.note, rawText = row.rawText, mediaId = row.mediaId)
+                )
             }
         }
         val spend = { row: com.danilkinkin.buckwheat.wallet.HistoryRow, periodId: Int? ->
@@ -129,7 +135,7 @@ class SpendsRepository @Inject constructor(
                         startDate = toDate(start.atStartOfDay()),
                         finishDate = Date(toDate(end.atStartOfDay()).time + DAY - 1000),
                         actualFinishDate = null,
-                        currency = periodRows.first().currency,
+                        currency = periodRows.first().currency.ifEmpty { prefs[currencyStoreKey] ?: "" },
                         archivedAt = now,
                     )
                 ).toInt()

@@ -1,6 +1,5 @@
 package com.danilkinkin.buckwheat.wallet
 
-import com.danilkinkin.buckwheat.editor.dateTimeEdit.DatePickerDialog
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.EaseInOutQuad
@@ -61,7 +60,7 @@ fun BudgetConstructor(
     maxStartDate: LocalDate = LocalDate.now(),
     onStartChange: (Date) -> Unit = {},
 ) {
-    var showStartPicker by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
 
@@ -229,55 +228,38 @@ fun BudgetConstructor(
             if (forceChange) focusRequester.requestFocus()
         }
 
-        val startDay = startDate.toLocalDate()
-        ButtonRow(
-            icon = painterResource(R.drawable.ic_calendar),
-            text = if (startDay == LocalDate.now()) {
-                stringResource(R.string.start_date_today)
-            } else {
-                stringResource(
-                    R.string.start_date_label,
-                    prettyDate(startDate, showTime = false, forceShowDate = true),
-                )
-            },
-            onClick = { showStartPicker = true },
-        )
-
-        if (showStartPicker) {
-            DatePickerDialog(
-                initDate = startDay,
-                disableBeforeDate = minStartDate,
-                disableAfterDate = maxStartDate,
-                onSelect = {
-                    showStartPicker = false
-                    onStartChange(it.toDate())
-                },
-                onClose = { showStartPicker = false },
-            )
-        }
-
         ButtonRow(
             icon = painterResource(R.drawable.ic_calendar),
             text = if (days > 0) {
-                String.format(
-                    pluralStringResource(R.plurals.finish_date_label, days),
+                val periodDays = countDays(dateToValue.value!!, startDate)
+                pluralStringResource(
+                    R.plurals.period_label,
+                    periodDays,
+                    prettyDate(startDate, showTime = false, forceShowDate = true),
                     prettyDate(dateToValue.value!!, showTime = false, forceShowDate = true),
-                    days,
+                    periodDays,
                 )
             } else {
                 stringResource(R.string.finish_date_not_select)
             },
+            description = if (days > 0) {
+                pluralStringResource(R.plurals.period_days_left, days, days)
+            } else {
+                null
+            },
             onClick = {
                 appViewModel.openSheet(PathState(
                     name = FINISH_DATE_SELECTOR_SHEET,
-                    args = if (days > 0) {
-                        mapOf("initialDate" to dateToValue.value)
-                    } else {
-                        mapOf("initialDate" to null)
-                    },
+                    args = mapOf(
+                        "startDate" to startDate,
+                        "initialDate" to if (days > 0) dateToValue.value else null,
+                        "minStartDate" to minStartDate,
+                        "maxStartDate" to maxStartDate,
+                    ),
                     callback = { result ->
                         if (!result.containsKey("finishDate")) return@PathState
 
+                        (result["startDate"] as Date?)?.let { onStartChange(it) }
                         dateToValue.value = result["finishDate"] as Date
 
                         onChange(budgetCache, dateToValue.value)

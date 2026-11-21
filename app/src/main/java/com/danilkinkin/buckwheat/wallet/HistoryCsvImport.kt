@@ -23,6 +23,9 @@ data class HistoryRow(
     val payee: String?,
     val reference: String?,
     val note: String?,
+    /** From a slip: everything OCR read, and its image */
+    val rawText: String = "",
+    val mediaId: Long? = null,
 )
 
 class NotAHistoryFileException : Exception("Not a Buckwheat history export")
@@ -101,6 +104,8 @@ class HistoryImportPlan(
             /** First day of the current period, null when there's no budget */
             currentStart: LocalDate?,
             now: LocalDateTime,
+            /** First and last day of the past periods already here */
+            existingPeriods: List<Pair<LocalDate, LocalDate>> = emptyList(),
         ): HistoryImportPlan {
             val seen = existing.toMutableSet()
             val references = usedReferences.toMutableSet()
@@ -133,11 +138,23 @@ class HistoryImportPlan(
                 var start = row.periodStart
                 var end = row.periodEnd?.let(clamp)
                 if (start == null || end == null || start.isAfter(end) || day.isBefore(start) || day.isAfter(end)) {
-                    val month = YearMonth.from(day)
-                    start = month.atDay(1)
-                    end = clamp(month.atEndOfMonth())
+                    // A past period already here that covers the day, else the day's month,
+                    // shrunk so it doesn't overlap past periods already here
+                    val covering = existingPeriods.firstOrNull { (s, e) -> !day.isBefore(s) && !day.isAfter(e) }
+                    if (covering != null) {
+                        start = covering.first
+                        end = covering.second
+                    } else {
+                        val month = YearMonth.from(day)
+                        start = month.atDay(1)
+                        end = clamp(month.atEndOfMonth())
+                        existingPeriods.forEach { (s, e) ->
+                            if (s.isAfter(day) && !s.isAfter(end!!)) end = s.minusDays(1)
+                            if (e.isBefore(day) && !e.isBefore(start!!)) start = e.plusDays(1)
+                        }
+                    }
                 }
-                toPast.getOrPut(start to end) { mutableListOf() } += row
+                toPast.getOrPut(start!! to end!!) { mutableListOf() } += row
             }
 
             return HistoryImportPlan(toCurrent, toPast, duplicates, skipped)

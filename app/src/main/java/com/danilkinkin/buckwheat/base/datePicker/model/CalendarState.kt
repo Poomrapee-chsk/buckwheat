@@ -15,6 +15,12 @@ class CalendarState(
     selectDate: Date? = null,
     disableBeforeDate: Date? = null,
     disableAfterDate: Date? = null,
+    /** [CalendarSelectionMode.PERIOD]: the end of the selected period */
+    selectEndDate: Date? = null,
+    /** [CalendarSelectionMode.PERIOD]: past days after this can't be the start */
+    startNotAfter: LocalDate? = null,
+    /** First month shown; by default the month of [disableBeforeDate], or this month */
+    firstMonth: YearMonth? = null,
 ) {
 
     val calendarUiState = mutableStateOf(
@@ -22,6 +28,7 @@ class CalendarState(
         selectionMode = selectionMode,
         disabledBefore = disableBeforeDate?.toLocalDate(),
         disabledAfter = disableAfterDate?.toLocalDate(),
+        startNotAfter = startNotAfter,
     )
     )
     val listMonths: List<Month>
@@ -30,14 +37,17 @@ class CalendarState(
     private val calendarEndDate: LocalDate = LocalDate.now().plusYears(2)
         .withMonth(12).withDayOfMonth(31)
 
+    private val firstShownDay: LocalDate =
+        firstMonth?.atDay(1) ?: disableBeforeDate?.toLocalDate()?.withDayOfMonth(1) ?: calendarStartDate
+
     private val periodBetweenCalendarStartEnd: Period = Period.between(
-        disableBeforeDate?.toLocalDate()?.withDayOfMonth(1) ?: calendarStartDate,
+        firstShownDay,
         disableAfterDate?.toLocalDate()?.withDayOfMonth(28) ?: calendarEndDate
     )
 
     init {
         val tempListMonths = mutableListOf<Month>()
-        var startYearMonth = YearMonth.from(disableBeforeDate?.toLocalDate()?.withDayOfMonth(1) ?: calendarStartDate)
+        var startYearMonth = YearMonth.from(firstShownDay)
 
         for (numberMonth in 0..periodBetweenCalendarStartEnd.toTotalMonths()) {
             val numberWeeks = startYearMonth.getNumberWeeks(context)
@@ -56,11 +66,19 @@ class CalendarState(
         }
         listMonths = tempListMonths.toList()
 
-        if (selectDate != null) setSelectedDay(selectDate.toLocalDate())
+        if (selectionMode == CalendarSelectionMode.PERIOD) {
+            calendarUiState.value = calendarUiState.value.setDates(
+                selectDate?.toLocalDate(), selectEndDate?.toLocalDate()
+            )
+        } else if (selectDate != null) {
+            setSelectedDay(selectDate.toLocalDate())
+        }
     }
 
     fun setSelectedDay(newDate: LocalDate) {
-        if (calendarUiState.value.selectionMode == CalendarSelectionMode.RANGE) {
+        if (calendarUiState.value.selectionMode == CalendarSelectionMode.PERIOD) {
+            calendarUiState.value = calendarUiState.value.selectPeriodDay(newDate)
+        } else if (calendarUiState.value.selectionMode == CalendarSelectionMode.RANGE) {
             calendarUiState.value = calendarUiState.value.setDates(LocalDate.now(), newDate)
         } else {
             calendarUiState.value = calendarUiState.value.setDate(newDate)

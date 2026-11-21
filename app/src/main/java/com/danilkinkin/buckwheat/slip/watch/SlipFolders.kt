@@ -62,6 +62,9 @@ import java.util.Date
 
 const val SLIP_FOLDERS_SHEET = "slipFolders"
 
+/** "All slips": far enough back for any slip */
+private val ALL_TIME = LocalDate.of(2000, 1, 1)
+
 @Composable
 fun SlipFolders(
     activityResultRegistryOwner: ActivityResultRegistryOwner?,
@@ -82,7 +85,8 @@ fun SlipFolders(
     val today = LocalDate.now()
     val minScanDate = periodStart.toLocalDate()
     var scanFrom by rememberSaveable { mutableStateOf<LocalDate?>(null) }
-    val scanFromDate = (scanFrom ?: minScanDate).coerceIn(minScanDate, today)
+    // Any day: slips before the current period go into past periods
+    val scanFromDate = (scanFrom ?: minScanDate).coerceAtMost(today)
     var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { foldersViewModel.refresh() }
@@ -275,6 +279,17 @@ fun SlipFolders(
                         Text(stringResource(R.string.slip_folders_scan))
                     }
                 }
+                TextButton(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    onClick = {
+                        slipImportViewModel.scanFolders(watchedIds, ALL_TIME.toDate())
+                        appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
+                        onClose()
+                    },
+                    enabled = watchedIds.isNotEmpty() && !slipImportViewModel.isReading,
+                ) {
+                    Text(stringResource(R.string.slip_folders_scan_all_now))
+                }
             }
         }
     }
@@ -292,13 +307,18 @@ fun SlipFolders(
                             askImport.joinToString(", ") { it.name.ifEmpty { it.relativePath } },
                         )
                     )
-                    TextButton(onClick = { showDatePicker = true }) {
-                        Text(
-                            stringResource(
-                                R.string.slip_folders_scan_from,
-                                prettyDate(scanFromDate.toDate(), pattern = "dd MMM yyyy", simplifyIfToday = false),
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { showDatePicker = true }) {
+                            Text(
+                                stringResource(
+                                    R.string.slip_folders_scan_from,
+                                    prettyDate(scanFromDate.toDate(), pattern = "dd MMM yyyy", simplifyIfToday = false),
+                                )
                             )
-                        )
+                        }
+                        TextButton(onClick = { scanFrom = ALL_TIME }) {
+                            Text(stringResource(R.string.slip_folders_scan_all))
+                        }
                     }
                 }
             },
@@ -323,8 +343,7 @@ fun SlipFolders(
     if (showDatePicker) {
         DatePickerDialog(
             initDate = scanFromDate,
-            // Spends before the current period can't be added
-            disableBeforeDate = minScanDate,
+            disableBeforeDate = null,
             disableAfterDate = today,
             onSelect = {
                 scanFrom = it
