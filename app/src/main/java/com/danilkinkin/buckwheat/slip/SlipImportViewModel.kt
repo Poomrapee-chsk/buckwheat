@@ -106,10 +106,12 @@ class SlipImportViewModel @Inject constructor(
                             }
                         }
 
-                        if (onlySlips && error == null && !SlipParser.looksLikeSlip(text)) {
+                        val imageDate = withContext(Dispatchers.IO) { SlipMedia.imageDate(context, source.uri) }
+
+                        if (onlySlips && error == null && !SlipParser.looksLikeSlip(text, imageDate)) {
                             skippedCount += 1
                         } else {
-                            candidates.add(factory.build(nextId++, text, candidates, source.mediaId, error))
+                            candidates.add(factory.build(nextId++, text, candidates, source.mediaId, error, imageDate))
                         }
                         readCount += 1
                     }

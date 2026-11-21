@@ -23,7 +23,8 @@ data class OcrLine(
 /**
  * On-device OCR for payment slips, plain Kotlin on top of ONNX Runtime:
  *
- * 1. Text detection: PaddleOCR PP-OCRv5 mobile DB detector finds text regions.
+ * 1. Text detection: PaddleOCR PP-OCRv6 tiny DB detector finds text regions. Chosen over PP-OCRv5
+ *    mobile with tools/slipbench on 50 real K PLUS slips: dates found 97.5% vs 85%, 1.5x faster.
  * 2. Recognition: AksonOCR-Lite Thai + English recognizer reads each region. It predicts whole Thai
  *    grapheme clusters (consonant with its vowels and tone marks), so marks can't come out scrambled.
  * 3. Layout: regions are joined into text rows for [com.danilkinkin.buckwheat.slip.SlipParser].
@@ -36,16 +37,36 @@ class SlipOcrEngine(
     recModel: ByteArray,
     /** Recognizer classes, index 0 is the CTC blank */
     private val charset: List<String>,
+    /**
+     * Turn each line crop into dark text on a flat white background before recognition, see
+     * [LineFlattener]. Needed by recognizers trained that way (iApp OpenThai OCR-Text); AksonOCR-Lite
+     * reads colour crops as they are.
+     */
+    private val flattenLines: Boolean = false,
+    threads: Int = 2,
 ) : AutoCloseable {
+    /** How long the last [recognize] call spent finding text and reading it, in milliseconds */
+    var lastDetectMs = 0L
+        private set
+    var lastRecognizeMs = 0L
+        private set
+
     private val env = OrtEnvironment.getEnvironment()
     private val options = OrtSession.SessionOptions().apply {
-        setIntraOpNumThreads(2)
+        setIntraOpNumThreads(threads)
     }
     private val det = env.createSession(detModel, options)
     private val rec = env.createSession(recModel, options)
 
-    fun recognize(image: OcrImage): List<OcrLine> =
-        detect(image).mapNotNull { box -> read(image, box) }
+    fun recognize(image: OcrImage): List<OcrLine> {
+        val start = System.nanoTime()
+        val boxes = detect(image)
+        val detected = System.nanoTime()
+        val lines = boxes.mapNotNull { box -> read(image, box) }
+        lastDetectMs = (detected - start) / 1_000_000
+        lastRecognizeMs = (System.nanoTime() - detected) / 1_000_000
+        return lines
+    }
 
     /** Text as rows, the format [com.danilkinkin.buckwheat.slip.SlipParser] reads */
     fun recognizeText(image: OcrImage): String = SlipLayout.toText(recognize(image), image.width)
@@ -135,8 +156,13 @@ class SlipOcrEngine(
         if (w < 4 || h < 4) return null
 
         val inW = ceil(REC_HEIGHT.toDouble() * w / h).toInt().coerceIn(16, REC_MAX_WIDTH)
-        val input = ImageOps.toTensor(image, box.left, box.top, w, h, inW, REC_HEIGHT) { _, value ->
-            (value / 255f - 0.5f) / 0.5f
+        val input = if (flattenLines) {
+            val bgr = ImageOps.toTensor(image, box.left, box.top, w, h, inW, REC_HEIGHT) { _, value -> value }
+            LineFlattener.flattenToTensor(bgr, inW, REC_HEIGHT)
+        } else {
+            ImageOps.toTensor(image, box.left, box.top, w, h, inW, REC_HEIGHT) { _, value ->
+                (value / 255f - 0.5f) / 0.5f
+            }
         }
         val output = run(rec, input, longArrayOf(1, 3, REC_HEIGHT.toLong(), inW.toLong()))
 
