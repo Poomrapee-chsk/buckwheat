@@ -28,7 +28,7 @@ class SlipTextRecognizer(private val context: Context) : AutoCloseable {
     }
 
     fun recognize(uri: Uri): String {
-        val bitmap = loadBitmap(uri)
+        val bitmap = binarize(loadBitmap(uri))
         try {
             api.setImage(bitmap)
             return api.utF8Text.orEmpty()
@@ -56,6 +56,18 @@ class SlipTextRecognizer(private val context: Context) : AutoCloseable {
                 )
             }
         }
+    }
+
+    private fun binarize(source: Bitmap): Bitmap {
+        val width = source.width
+        val height = source.height
+        val pixels = IntArray(width * height)
+        source.getPixels(pixels, 0, width, 0, 0, width, height)
+        source.recycle()
+
+        val result = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        result.setPixels(SlipBinarizer.binarize(pixels, width, height), 0, width, 0, 0, width, height)
+        return result
     }
 
     /** Copies bundled language data out of assets once, Tesseract can only read real files. */

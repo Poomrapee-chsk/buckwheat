@@ -54,7 +54,7 @@ object SlipParser {
     private val NUMBER = Regex("""(?<![\d.,])(\d{1,3}(?:,\d{3})+|\d+)(\.\d{1,2})?(?![\d,])""")
     private val CURRENCY = Regex("""บาท|thb|฿""", RegexOption.IGNORE_CASE)
     private val TEXT_DATE = Regex(
-        """(\d{1,2})\s*([ก-๛A-Za-z][ก-๛A-Za-z.\s]{1,14}?)\s*(\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d))?"""
+        """(?<!\d)(\d{1,2})\s*([ก-๛A-Za-z][ก-๛A-Za-z.\s]{1,14}?)\s*(\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*[:.]\s*(\d{2})(?!\d))?"""
     )
     private val NUMERIC_DATE = Regex(
         """(?<!\d)(\d{1,2})[/\-.](\d{1,2})[/\-.](\d{4}|\d{2})(?!\d)(?:\D{0,5}?(\d{1,2})\s*:\s*(\d{2})(?!\d))?"""
@@ -105,7 +105,10 @@ object SlipParser {
         val l = skeleton(label)
         if (c.isEmpty() || l.isEmpty()) return false
         if (c == l) return true
-        return l.length >= 3 && c.length >= 3 && levenshtein(c, l) <= 1
+        // One wrong letter is a typical OCR mistake in Thai. Latin text is read reliably,
+        // and short English labels ("fee", "to") would otherwise match background noise
+        val thai = l.any { it in '\u0E00'..'\u0E7F' }
+        return thai && l.length >= 3 && c.length >= 3 && levenshtein(c, l) <= 1
     }
 
     /** Splits "label: value" or "label      value" into its parts. */
@@ -249,24 +252,52 @@ object SlipParser {
         return null
     }
 
-    // ---- payee without a label (e.g. KBank: sender block, then recipient block) ----
+    // ---- payee without a label ----
+    // KBank / Make slips have no "to" label: a sender block (name, bank, account),
+    // then a recipient block (shop name, branch, owner), then the labeled amount.
+    // Account numbers are often blurred, so: the recipient is the first line of the
+    // last block of name-like lines before the first label.
 
-    private fun isNameLike(line: String): Boolean {
-        if (isAnyLabel(line) || ACCOUNT_LIKE.containsMatchIn(line)) return false
-        val letters = line.count { it.isLetter() }
-        val digits = line.count { it.isDigit() }
-        return letters >= 3 && digits <= 2 && skeleton(line).length >= 3 &&
-                !Regex("สำเร็จ|successful|success", RegexOption.IGNORE_CASE).containsMatchIn(line)
+    private val SUCCESS = Regex("completed|successful|success", RegexOption.IGNORE_CASE)
+
+    /** Letters plus Thai vowel and tone marks, which are not letters for [Char.isLetter] */
+    private fun isWordChar(c: Char): Boolean = c.isLetter() ||
+            Character.getType(c) == Character.NON_SPACING_MARK.toInt() ||
+            Character.getType(c) == Character.COMBINING_SPACING_MARK.toInt()
+
+    /** Mostly OCR noise from backgrounds and icons: "ว%", "#", "ง.", "0๓๐ง" */
+    private fun isJunkToken(token: String): Boolean =
+        token.length <= 1 || token.count { isWordChar(it) } < token.length * 0.6
+
+    /** The name on this line without surrounding noise, or null when it isn't a name */
+    private fun nameOnLine(line: String): String? {
+        if (isAnyLabel(line) || ACCOUNT_LIKE.containsMatchIn(line)) return null
+        if (SUCCESS.containsMatchIn(line) || skeleton(line).contains(skeleton("สำเร็จ"))) return null
+
+        // Decorations on the right are separated from the text by a wide gap
+        val tokens = line.split(Regex("""\s{2,}""")).first()
+            .split(' ').filter { it.isNotBlank() }.toMutableList()
+        while (tokens.isNotEmpty() && isJunkToken(tokens.first())) tokens.removeAt(0)
+        while (tokens.isNotEmpty() && isJunkToken(tokens.last())) tokens.removeAt(tokens.lastIndex)
+
+        val name = tokens.joinToString(" ")
+        val wordChars = name.count { isWordChar(it) }
+        val digits = name.count { it.isDigit() }
+
+        return name.takeIf { wordChars >= 3 && digits <= 2 && skeleton(it).length >= 3 }
     }
 
     private fun findUnlabeledPayee(lines: List<String>): String? {
-        val firstAccount = lines.indexOfFirst { ACCOUNT_LIKE.containsMatchIn(it) && !isAnyLabel(it) }
-        if (firstAccount < 0) return null
+        val firstLabel = lines.indexOfFirst { isAnyLabel(it) }.let { if (it < 0) lines.size else it }
 
-        return lines
-            .drop(firstAccount + 1)
-            .takeWhile { !isAnyLabel(it) }
-            .firstOrNull { isNameLike(it) }
-            ?.let { cleanValue(it) }
+        var lastBlock: String? = null
+        var inBlock = false
+        lines.take(firstLabel).forEach { line ->
+            val name = nameOnLine(line)
+            if (name != null && !inBlock) lastBlock = name
+            inBlock = name != null
+        }
+
+        return lastBlock
     }
 }
