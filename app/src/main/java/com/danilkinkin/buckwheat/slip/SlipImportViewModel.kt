@@ -161,7 +161,7 @@ class SlipImportViewModel @Inject constructor(
             pending.filter { it.mediaId !in known }.forEach { slip ->
                 shownPendingIds += slip.mediaId!!
                 // The budget may have changed since it was found
-                candidates.add(slip.copy(id = nextId++, selected = slip.looksGood && (slip.isPast || factory.stillAddable(slip))))
+                candidates.add(slip.copy(id = nextId++, selected = slip.looksGood && factory.stillNew(slip)))
             }
         }
     }
@@ -195,7 +195,10 @@ class SlipImportViewModel @Inject constructor(
 
         viewModelScope.launch {
             val defaultTag = context.getString(com.danilkinkin.buckwheat.R.string.slip_default_tag)
-            val result = spendsRepository.importHistory(toAdd.map { it.toHistoryRow(pastPeriodBudget, defaultTag) })
+            val result = spendsRepository.importHistory(
+                toAdd.map { it.toHistoryRow(pastPeriodBudget, defaultTag) },
+                extendCurrentPeriod = true,
+            )
 
             tagMemory.remember(
                 toAdd

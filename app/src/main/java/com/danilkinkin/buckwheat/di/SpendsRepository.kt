@@ -68,6 +68,18 @@ class SpendsRepository @Inject constructor(
             slipDetailsDao.getUsedReferences().toSet()
         }
 
+    /** First day slips can be added to the current period, moving its start back, see [importHistory] */
+    suspend fun getCurrentPeriodExtendableStart(): Date {
+        val zone = java.time.ZoneId.systemDefault()
+        val dayOf = { d: Date -> d.toInstant().atZone(zone).toLocalDate() }
+        val start = roundToDay(getStartPeriodDate().first())
+        val periods = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            periodDao.getAllSync().map { dayOf(it.startDate) to dayOf(it.actualFinishDate ?: it.finishDate) }
+        }
+        return com.danilkinkin.buckwheat.wallet.HistoryImportPlan.extendableStart(dayOf(start), periods)
+            ?.let { Date.from(it.atStartOfDay(zone).toInstant()) } ?: start
+    }
+
     data class HistoryImportResult(val added: Int, val duplicates: Int, val skipped: Int)
 
     /**
@@ -76,7 +88,15 @@ class SpendsRepository @Inject constructor(
      * math, like spends added by hand); older ones go into their past period, recreated from the CSV's
      * period dates and budget when it isn't here anymore.
      */
-    suspend fun importHistory(rows: List<com.danilkinkin.buckwheat.wallet.HistoryRow>): HistoryImportResult {
+    /**
+     * @param extendCurrentPeriod slips from earlier this month (before the current period's start) join
+     *   the current period, which then starts on the 1st (or after the last past period): its budget is
+     *   computed as if spending had been tracked since. Off for CSV imports, which keep their periods.
+     */
+    suspend fun importHistory(
+        rows: List<com.danilkinkin.buckwheat.wallet.HistoryRow>,
+        extendCurrentPeriod: Boolean = false,
+    ): HistoryImportResult {
         val zone = java.time.ZoneId.systemDefault()
         val toDate = { t: java.time.LocalDateTime -> Date.from(t.atZone(zone).toInstant()) }
         val dayOf = { d: Date -> d.toInstant().atZone(zone).toLocalDate() }
@@ -99,6 +119,9 @@ class SpendsRepository @Inject constructor(
             currentStart = currentStart?.let(dayOf),
             now = toLocal(now),
             existingPeriods = existingPeriods,
+            currentExtendableStart = currentStart?.let(dayOf)?.let {
+                com.danilkinkin.buckwheat.wallet.HistoryImportPlan.extendableStart(it, existingPeriods)
+            }.takeIf { extendCurrentPeriod },
         )
         val toCurrent = plan.toCurrent
         val toPast = plan.toPast
@@ -142,6 +165,13 @@ class SpendsRepository @Inject constructor(
 
                 periodRows.forEach { row -> details(row, transactionDao.insertOne(spend(row, periodId)).toInt()) }
             }
+        }
+
+        plan.newCurrentStart?.let { start ->
+            context.budgetDataStore.edit {
+                it[startPeriodDateStoreKey] = toDate(start.atStartOfDay()).time
+            }
+            Log.d("SpendsRepository", "Current period now starts $start, to take in earlier slips")
         }
 
         // Current period: through the budget math, like a spend added by hand on that day

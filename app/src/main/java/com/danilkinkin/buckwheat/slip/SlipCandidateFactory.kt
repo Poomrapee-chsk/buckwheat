@@ -113,6 +113,8 @@ class SlipCandidateFactory(
     private val payeeTags: Map<String, String>,
     private val existingSpends: List<Transaction>,
     private val periodStart: Date,
+    /** Earlier days of this month can still join the current period, moving its start back */
+    private val addableToCurrentFrom: Date = periodStart,
     private val now: Date = Date(),
     /** References of slips already added, in any period */
     private val usedReferences: Set<String> = emptySet(),
@@ -133,7 +135,7 @@ class SlipCandidateFactory(
         if (text.isBlank()) warnings += SlipWarning.UNREADABLE
         if (slip.amount == null) warnings += SlipWarning.NO_AMOUNT
         if (slip.dateTime == null) warnings += SlipWarning.NO_DATE
-        if (date.before(periodStart)) warnings += SlipWarning.OUTSIDE_PERIOD
+        if (date.before(addableToCurrentFrom)) warnings += SlipWarning.OUTSIDE_PERIOD
         if (date.time > now.time + FUTURE_TOLERANCE) warnings += SlipWarning.FUTURE
 
         // Same bank transfer: certain, whatever the amount or time
@@ -188,6 +190,16 @@ class SlipCandidateFactory(
         }
     }
 
+    /** For review: still not in the budget already (by reference or amount and time), and not in the future */
+    fun stillNew(candidate: SlipCandidate): Boolean {
+        if (candidate.date.time > now.time + FUTURE_TOLERANCE) return false
+        if (candidate.reference != null && candidate.reference in usedReferences) return false
+        val amount = candidate.amount ?: return true
+        return existingSpends.none {
+            it.value.compareTo(amount) == 0 && abs(it.date.time - candidate.date.time) <= DUPLICATE_WINDOW
+        }
+    }
+
     companion object {
         private const val DUPLICATE_WINDOW = 30 * 60 * 1000L
         private const val FUTURE_TOLERANCE = 5 * 60 * 1000L
@@ -207,6 +219,7 @@ class SlipCandidateFactory(
                 payeeTags = tagMemory.getAll(),
                 existingSpends = spendsRepository.getAllSpends().asFlow().first(),
                 periodStart = roundToDay(spendsRepository.getStartPeriodDate().first()),
+                addableToCurrentFrom = spendsRepository.getCurrentPeriodExtendableStart(),
                 usedReferences = spendsRepository.getUsedSlipReferences(),
             )
         }

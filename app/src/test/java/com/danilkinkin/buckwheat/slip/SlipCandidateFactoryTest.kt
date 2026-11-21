@@ -92,6 +92,26 @@ class SlipCandidateFactoryTest {
     }
 
     @Test
+    fun earlierThisMonthJoinsTheCurrentPeriod() {
+        // Period starts on the 20th, but the 1st-19th can still join it: the 19 Nov slip isn't "past"
+        val factory = SlipCandidateFactory(
+            tagCounts = emptyMap(),
+            payeeTags = emptyMap(),
+            existingSpends = emptyList(),
+            periodStart = date(2026, 11, 20),
+            now = date(2026, 11, 21, 18, 0),
+            addableToCurrentFrom = date(2026, 11, 1),
+        )
+        val candidate = factory.build(0, fixture("kbank_real_amazon"))
+
+        assertFalse(candidate.isPast)
+        assertTrue(candidate.selected)
+        assertTrue(factory.stillNew(candidate))
+        // Notifications never move the period start
+        assertFalse(factory.stillAddable(candidate))
+    }
+
+    @Test
     fun alreadyAddedByHandIsDuplicate() {
         val existing = Transaction(TransactionType.SPENT, BigDecimal("120.00"), date(2026, 11, 21, 16, 45))
         val candidate = factory(listOf(existing)).build(0, fixture("kbank_real_matcha"))
