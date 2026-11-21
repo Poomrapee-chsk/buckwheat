@@ -46,6 +46,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlin {
+        jvmToolchain(17)
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -107,6 +111,8 @@ dependencies {
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling:1.8.3")
     debugImplementation("androidx.compose.ui:ui-test-manifest:1.8.3")
+
+    testImplementation("junit:junit:4.13.2")
 
     // Testing
     androidTestImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

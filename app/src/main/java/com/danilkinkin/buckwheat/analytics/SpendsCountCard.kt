@@ -29,12 +29,13 @@ import com.danilkinkin.buckwheat.ui.BuckwheatTheme
 fun SpendsCountCard(
     modifier: Modifier = Modifier,
     count: Int,
+    onClick: (() -> Unit)? = null,
     appViewModel: AppViewModel = hiltViewModel(),
 ) {
     Card(
         modifier = modifier.height(IntrinsicSize.Min),
         shape = CircleShape,
-        onClick = {
+        onClick = onClick ?: {
             appViewModel.openSheet(PathState(VIEWER_HISTORY_SHEET))
         }
     ) {

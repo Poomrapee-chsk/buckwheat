@@ -24,6 +24,10 @@ import com.danilkinkin.buckwheat.analytics.ANALYTICS_SHEET
 import com.danilkinkin.buckwheat.analytics.Analytics
 import com.danilkinkin.buckwheat.analytics.VIEWER_HISTORY_SHEET
 import com.danilkinkin.buckwheat.analytics.ViewerHistory
+import com.danilkinkin.buckwheat.history.PERIODS_HISTORY_SHEET
+import com.danilkinkin.buckwheat.history.PERIOD_OVERVIEW_SHEET
+import com.danilkinkin.buckwheat.history.PeriodOverview
+import com.danilkinkin.buckwheat.history.PeriodsHistory
 import com.danilkinkin.buckwheat.onboarding.ON_BOARDING_SHEET
 import com.danilkinkin.buckwheat.onboarding.Onboarding
 import com.danilkinkin.buckwheat.recalcBudget.RECALCULATE_DAILY_BUDGET_SHEET
@@ -143,6 +147,23 @@ fun BottomSheets(
         ViewerHistory(
             onClose = {
                 coroutineScope.launch { it.hide() }
+            }
+        )
+    }
+
+    BottomSheetWrapper(name = PERIODS_HISTORY_SHEET) { state ->
+        PeriodsHistory(
+            onClose = {
+                coroutineScope.launch { state.hide() }
+            }
+        )
+    }
+
+    BottomSheetWrapper(name = PERIOD_OVERVIEW_SHEET) { state ->
+        PeriodOverview(
+            periodId = (state.args["periodId"] as? Int) ?: -1,
+            onClose = {
+                coroutineScope.launch { state.hide() }
             }
         )
     }

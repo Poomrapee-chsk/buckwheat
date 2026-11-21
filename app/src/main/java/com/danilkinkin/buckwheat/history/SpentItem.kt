@@ -7,6 +7,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.danilkinkin.buckwheat.R
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,6 +62,17 @@ fun SpentItem(
                     softWrap = false,
                 )
             }
+        }
+        if (transaction.manualTreat || transaction.automaticTreat) {
+            Text(
+                text = stringResource(
+                    if (transaction.manualTreat) R.string.treat_manual
+                    else R.string.treat_automatic
+                ),
+                modifier = Modifier.padding(horizontal = 32.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.tertiary,
+            )
         }
         if (transaction.comment.isNotEmpty()) {
             Text(

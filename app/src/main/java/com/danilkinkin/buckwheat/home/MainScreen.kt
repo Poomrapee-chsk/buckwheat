@@ -90,6 +90,7 @@ fun MainScreen(
 
     val snackBarMessage = stringResource(R.string.remove_spent)
     val snackBarAction = stringResource(R.string.remove_spent_undo)
+    val periodDeletedMessage = stringResource(R.string.period_deleted)
 
     nightMode.value = isNightMode()
 
@@ -113,6 +114,18 @@ fun MainScreen(
         ) { snackbarResult ->
             if (snackbarResult == SnackbarResult.ActionPerformed) {
                 spendsViewModel.undoRemoveSpent()
+            }
+        }
+    }
+
+    observeLiveData(spendsViewModel.lastRemovedPeriod) {
+        appViewModel.showSnackbar(
+            message = periodDeletedMessage,
+            actionLabel = snackBarAction,
+            duration = SnackbarDuration.Long,
+        ) { snackbarResult ->
+            if (snackbarResult == SnackbarResult.ActionPerformed) {
+                spendsViewModel.undoRemovePeriod()
             }
         }
     }

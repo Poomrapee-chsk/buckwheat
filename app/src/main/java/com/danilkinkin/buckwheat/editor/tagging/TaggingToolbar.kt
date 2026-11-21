@@ -17,6 +17,10 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Text
+import androidx.compose.ui.res.stringResource
+import com.danilkinkin.buckwheat.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
@@ -40,6 +44,7 @@ fun TaggingToolbar(
     editorViewModel: EditorViewModel = hiltViewModel(),
     editorFocusController: FocusController
 ) {
+    val manualTreat by editorViewModel.manualTreat.observeAsState(false)
     val localDensity = LocalDensity.current
 
     val tags by spendsViewModel.tags.observeAsState(emptyList())
@@ -68,6 +73,18 @@ fun TaggingToolbar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.End,
         ) {
+            if (showAddComment) {
+                FilterChip(
+                    selected = manualTreat,
+                    onClick = { editorViewModel.manualTreat.value = !manualTreat },
+                    label = {
+                        Text(
+                            stringResource(R.string.treat_manual)
+                        )
+                    },
+                )
+                Spacer(Modifier.width(8.dp))
+            }
             tags.take(5).reversed().filter { it != currentComment }.forEach { tag ->
                 AnimatedVisibility(
                     visible = showAddComment,

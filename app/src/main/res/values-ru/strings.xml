@@ -141,6 +141,10 @@
   <string name="send_crash_report">Отправить отчёт</string>
   <string name="add_your_comment_to_report">Если хотите, добавьте сюда свой комментарий. Вы можете удалить блок с информацией об устройстве, если считаете, что эта информация не важна</string>
   <string name="history_title">История</string>
+  <string name="periods_history_title">История бюджетов</string>
+  <string name="no_periods_history">Пока нет завершённых бюджетов</string>
+  <string name="period_overview_title">Обзор бюджета</string>
+  <string name="period_deleted">Бюджет удалён</string>
   <string name="view_analytics">Посмотреть аналитику</string>
   <string name="analytics_title">Аналитика</string>
   <string name="finish_early">Закончить раньше</string>
