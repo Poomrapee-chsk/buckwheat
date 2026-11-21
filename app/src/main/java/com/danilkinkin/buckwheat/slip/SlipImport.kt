@@ -49,6 +49,9 @@ import com.danilkinkin.buckwheat.data.AppViewModel
 import com.danilkinkin.buckwheat.data.PathState
 import com.danilkinkin.buckwheat.base.ButtonRow
 import com.danilkinkin.buckwheat.slip.watch.SLIP_FOLDERS_SHEET
+import com.danilkinkin.buckwheat.slip.watch.SlipFoldersViewModel
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import com.danilkinkin.buckwheat.util.prettyDate
 
 const val SLIP_IMPORT_SHEET = "slipImport"
@@ -59,6 +62,7 @@ private const val MAX_SLIPS = 50
 fun SlipImport(
     activityResultRegistryOwner: ActivityResultRegistryOwner?,
     slipImportViewModel: SlipImportViewModel = hiltViewModel(),
+    foldersViewModel: SlipFoldersViewModel = hiltViewModel(),
     appViewModel: AppViewModel = hiltViewModel(),
     onClose: () -> Unit = {},
 ) {
@@ -67,6 +71,9 @@ fun SlipImport(
         LocalWindowInsets.current.calculateBottomPadding().coerceAtLeast(16.dp)
     val candidates = slipImportViewModel.candidates
     val context = LocalContext.current
+
+    val watchEnabled by foldersViewModel.watchEnabled.observeAsState(false)
+    val watchedFolders by foldersViewModel.watchedFolders.observeAsState(emptyList())
 
     // Slips found in watched folders, e.g. after tapping a notification
     LaunchedEffect(Unit) { slipImportViewModel.loadPending() }
@@ -135,7 +142,26 @@ fun SlipImport(
                         color = LocalContentColor.current.copy(alpha = 0.7f),
                         textAlign = TextAlign.Center,
                     )
+                    if (watchEnabled && watchedFolders.isNotEmpty()) {
+                        Text(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = stringResource(
+                                R.string.slip_import_watching,
+                                watchedFolders.joinToString(", ") { it.name },
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            textAlign = TextAlign.Center,
+                        )
+                    }
                     Button(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 56.dp),
+                        onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
+                    ) {
+                        Text(stringResource(R.string.slip_import_choose_folders))
+                    }
+                    OutlinedButton(
                         modifier = Modifier
                             .fillMaxWidth()
                             .heightIn(min = 56.dp),
@@ -143,12 +169,6 @@ fun SlipImport(
                     ) {
                         Text(stringResource(R.string.slip_import_choose))
                     }
-                    ButtonRow(
-                        icon = painterResource(R.drawable.ic_calendar),
-                        text = stringResource(R.string.slip_folders_title),
-                        description = stringResource(R.string.slip_folders_entry_description),
-                        onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
-                    )
                 }
 
                 if (slipImportViewModel.skippedCount > 0 && !slipImportViewModel.isReading) {

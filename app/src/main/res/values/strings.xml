@@ -155,8 +155,10 @@
     <string name="treat_popup_confirm">Mark as treat</string>
     <string name="treat_popup_dismiss">Keep as regular</string>
   <string name="slip_import_title">Import slips</string>
-  <string name="slip_import_description">Pick screenshots of bank transfer slips. They are read on your phone, nothing is uploaded. Check each spend before adding it.</string>
-  <string name="slip_import_choose">Choose slip images</string>
+  <string name="slip_import_description">Choose the folders your bank apps save slips to. Buckwheat can import the slips already there and notify you about new ones. Slips are read on your phone, nothing is uploaded.</string>
+  <string name="slip_import_choose">Pick images instead</string>
+  <string name="slip_import_choose_folders">Choose slip folders</string>
+  <string name="slip_import_watching">Watching %1$s for new slips</string>
   <string name="slip_import_choose_more">Choose more</string>
   <string name="slip_import_reading">Reading slips %1$d of %2$d…</string>
   <string name="slip_import_amount">Amount</string>
@@ -205,4 +207,11 @@
   <string name="slip_notification_add">Add</string>
   <string name="slip_notification_review">Review</string>
   <string name="slip_notification_dismiss">Dismiss</string>
+  <string name="slip_folders_import_past_title">Import past slips?</string>
+  <string name="slip_folders_import_past_description">Add slips already saved in %1$s to this budget period. You can check each one before it\'s added.</string>
+  <string name="slip_folders_import_past_confirm">Import</string>
+  <string name="slip_folders_import_past_skip">Not now</string>
+  <string name="export_current_period">Current period</string>
+  <string name="export_current_period_description">Spends of this budget period</string>
+  <string name="export_all_periods">All periods</string>
 </resources>

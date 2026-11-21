@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -275,6 +277,47 @@ fun SlipFolders(
                 }
             }
         }
+    }
+
+    val askImport = foldersViewModel.askImportPast
+    if (askImport.isNotEmpty() && !showDatePicker) {
+        AlertDialog(
+            onDismissRequest = { foldersViewModel.answeredImportPast() },
+            title = { Text(stringResource(R.string.slip_folders_import_past_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        stringResource(
+                            R.string.slip_folders_import_past_description,
+                            askImport.joinToString(", ") { it.name.ifEmpty { it.relativePath } },
+                        )
+                    )
+                    TextButton(onClick = { showDatePicker = true }) {
+                        Text(
+                            stringResource(
+                                R.string.slip_folders_scan_from,
+                                prettyDate(scanFromDate.toDate(), pattern = "dd MMM yyyy", simplifyIfToday = false),
+                            )
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    slipImportViewModel.scanFolders(askImport.map { it.bucketId }, scanFromDate.toDate())
+                    foldersViewModel.answeredImportPast()
+                    appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
+                    onClose()
+                }) {
+                    Text(stringResource(R.string.slip_folders_import_past_confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { foldersViewModel.answeredImportPast() }) {
+                    Text(stringResource(R.string.slip_folders_import_past_skip))
+                }
+            },
+        )
     }
 
     if (showDatePicker) {
