@@ -290,6 +290,18 @@ fun SlipFolders(
                 ) {
                     Text(stringResource(R.string.slip_folders_scan_all_now))
                 }
+                // Reads again what's already listed, with the current parser
+                TextButton(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    onClick = {
+                        slipImportViewModel.scanFolders(watchedIds, ALL_TIME.toDate(), force = true)
+                        appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
+                        onClose()
+                    },
+                    enabled = watchedIds.isNotEmpty() && !slipImportViewModel.isReading,
+                ) {
+                    Text(stringResource(R.string.slip_folders_rescan_all))
+                }
             }
         }
     }

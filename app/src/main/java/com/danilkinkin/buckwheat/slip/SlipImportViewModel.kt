@@ -58,7 +58,7 @@ class SlipImportViewModel @Inject constructor(
     fun readSlips(uris: List<Uri>) = read(uris.map { Source(it, null) }, onlySlips = false)
 
     /** Past images of the chosen folders: only the ones that look like slips are shown */
-    fun scanFolders(bucketIds: Collection<Long>, from: Date) {
+    fun scanFolders(bucketIds: Collection<Long>, from: Date, force: Boolean = false) {
         if (isReading) return
         isReading = true
 
@@ -70,7 +70,9 @@ class SlipImportViewModel @Inject constructor(
             } finally {
                 isReading = false
             }
-            read(images.map { Source(it.uri, it.mediaId) }, onlySlips = true)
+            readJob = null
+            isReading = false
+            read(images.map { Source(it.uri, it.mediaId) }, onlySlips = true, force = force)
         }
     }
 
@@ -98,8 +100,22 @@ class SlipImportViewModel @Inject constructor(
         candidates.filter { !(it.selected && it.canBeAdded && it.amount != null) }.forEach { discard(it) }
     }
 
-    private fun read(sources: List<Source>, onlySlips: Boolean) {
+    /**
+     * @param force read again slips that are already in the list (or waiting from a notification)
+     *   and replace them, so the current parser's result is shown instead of an old one
+     */
+    private fun read(sources: List<Source>, onlySlips: Boolean, force: Boolean = false) {
         if (isReading) return
+
+        if (force) {
+            val ids = sources.mapNotNull { it.mediaId }.toSet()
+            candidates.removeAll { it.mediaId in ids }
+            shownPendingIds.removeAll(ids)
+            viewModelScope.launch {
+                watchSettings.removePending(ids)
+                ids.forEach { SlipNotifications.cancel(context, it) }
+            }
+        }
 
         isReading = true
         readCount = 0
