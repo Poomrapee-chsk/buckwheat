@@ -71,6 +71,7 @@ object SlipNotifications {
         val amount = numberFormat(context, candidate.amount ?: return, currency = currency)
         val details = listOfNotNull(
             candidate.payee,
+            candidate.note,
             candidate.tag.takeIf { it.isNotBlank() }?.let { "→ $it" },
             DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(candidate.date),
         ).joinToString(" · ")
