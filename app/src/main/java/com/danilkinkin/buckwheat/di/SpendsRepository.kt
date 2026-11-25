@@ -68,6 +68,12 @@ class SpendsRepository @Inject constructor(
             slipDetailsDao.getUsedReferences().toSet()
         }
 
+    /** MediaStore ids of imported slips whose spend still exists, to skip re-reading them */
+    suspend fun getUsedSlipMediaIds(): Set<Long> =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            slipDetailsDao.getUsedMediaIds().toSet()
+        }
+
     /** First day slips can be added to the current period, moving its start back, see [importHistory] */
     suspend fun getCurrentPeriodExtendableStart(): Date {
         val zone = java.time.ZoneId.systemDefault()
@@ -127,7 +133,7 @@ class SpendsRepository @Inject constructor(
         val toPast = plan.toPast
 
         val details = { row: com.danilkinkin.buckwheat.wallet.HistoryRow, uid: Int ->
-            if (row.payee != null || row.reference != null || row.note != null || row.rawText.isNotEmpty()) {
+            if (row.payee != null || row.reference != null || row.note != null || row.rawText.isNotEmpty() || row.mediaId != null) {
                 slipDetailsDao.insert(
                     SlipDetails(uid, payee = row.payee, reference = row.reference, note = row.note, rawText = row.rawText, mediaId = row.mediaId)
                 )

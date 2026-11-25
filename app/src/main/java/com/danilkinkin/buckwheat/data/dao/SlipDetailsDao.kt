@@ -19,6 +19,13 @@ interface SlipDetailsDao {
     )
     fun getUsedReferences(): List<String>
 
+    /** MediaStore ids of slips whose spend still exists, in any period */
+    @Query(
+        "SELECT d.mediaId FROM slip_details d JOIN transactions t ON t.uid = d.transactionUid " +
+                "WHERE d.mediaId IS NOT NULL"
+    )
+    fun getUsedMediaIds(): List<Long>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insert(details: SlipDetails)
 

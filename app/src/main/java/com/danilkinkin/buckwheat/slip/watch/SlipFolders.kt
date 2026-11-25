@@ -1,7 +1,9 @@
 package com.danilkinkin.buckwheat.slip.watch
 
 import android.Manifest
+import android.content.Intent
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.LocalActivityResultRegistryOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.ActivityResultRegistryOwner
@@ -32,7 +34,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +47,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -87,9 +94,27 @@ fun SlipFolders(
     var scanFrom by rememberSaveable { mutableStateOf<LocalDate?>(null) }
     // Any day: slips before the current period go into past periods
     val scanFromDate = (scanFrom ?: minScanDate).coerceAtMost(today)
+    var omitImported by rememberSaveable { mutableStateOf(true) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { foldersViewModel.refresh() }
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var notificationsAllowed by remember { mutableStateOf(SlipNotifications.canNotify(context)) }
+    var askedNotifications by rememberSaveable { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        foldersViewModel.refresh()
+        notificationsAllowed = SlipNotifications.canNotify(context)
+    }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                notificationsAllowed = SlipNotifications.canNotify(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     var requestPhotos: () -> Unit = {}
     var requestNotifications: () -> Unit = {}
@@ -100,7 +125,10 @@ fun SlipFolders(
             ) { foldersViewModel.refresh() }
             val notifications = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestPermission()
-            ) { }
+            ) {
+                askedNotifications = true
+                notificationsAllowed = SlipNotifications.canNotify(context)
+            }
 
             requestPhotos = { photos.launch(SlipMedia.readPermission) }
             requestNotifications = {
@@ -193,6 +221,33 @@ fun SlipFolders(
                     )
                 }
                 if (watchEnabled) {
+                    if (!notificationsAllowed) {
+                        Column(
+                            modifier = Modifier.padding(horizontal = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                text = stringResource(R.string.slip_folders_notifications_blocked),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error,
+                            )
+                            TextButton(
+                                onClick = {
+                                    if (!askedNotifications && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        requestNotifications()
+                                    } else {
+                                        context.startActivity(
+                                            Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }
+                                },
+                            ) {
+                                Text(stringResource(R.string.slip_folders_allow_notifications))
+                            }
+                        }
+                    }
                     TextButton(
                         modifier = Modifier.padding(horizontal = 12.dp),
                         onClick = { foldersViewModel.checkNow() },
@@ -288,13 +343,28 @@ fun SlipFolders(
                             }
                             Spacer(Modifier.weight(1f))
                         }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { omitImported = !omitImported },
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = omitImported,
+                                onCheckedChange = { omitImported = it },
+                            )
+                            Text(
+                                text = stringResource(R.string.slip_folders_omit_imported),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                         Button(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .heightIn(min = 56.dp),
                             enabled = watchedIds.isNotEmpty() && !slipImportViewModel.isReading,
                             onClick = {
-                                slipImportViewModel.scanFolders(watchedIds, scanFromDate.toDate())
+                                slipImportViewModel.scanFolders(watchedIds, scanFromDate.toDate(), omitImported)
                                 appViewModel.openSheet(PathState(SLIP_IMPORT_SHEET))
                                 onClose()
                             },

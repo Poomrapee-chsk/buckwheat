@@ -57,14 +57,17 @@ class SlipImportViewModel @Inject constructor(
     /** Images the user picked: every one is shown, even when it doesn't look like a slip */
     fun readSlips(uris: List<Uri>) = read(uris.map { Source(it, null) }, onlySlips = false)
 
-    /** Past images of the chosen folders: only the ones that look like slips are shown */
     /**
      * Runs in the background ([SlipScanWorker]) with a progress notification, so it doesn't need the
      * app open; slips found come in through the waiting list, see [loadPending]
      */
-    fun scanFolders(bucketIds: Collection<Long>, from: Date) {
+    fun scanFolders(
+        bucketIds: Collection<Long>,
+        from: Date,
+        omitImported: Boolean = true,
+    ) {
         if (isReading) return
-        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.start(context, bucketIds, from.time)
+        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.start(context, bucketIds, from.time, omitImported)
     }
 
     /** Progress of a background folder scan */
@@ -80,19 +83,31 @@ class SlipImportViewModel @Inject constructor(
 
     /** Removes a slip from the list; one found in a watched folder isn't offered again */
     fun discard(candidate: SlipCandidate) {
-        candidates.removeAll { it.id == candidate.id }
-        candidate.mediaId?.takeIf { it in shownPendingIds }?.let { mediaId ->
-            shownPendingIds -= mediaId
-            viewModelScope.launch {
-                watchSettings.removePending(listOf(mediaId))
-                SlipNotifications.cancel(context, mediaId)
-            }
-        }
+        discardAll(listOf(candidate))
     }
 
     /** Removes every slip that isn't ticked */
     fun discardUnselected() {
-        candidates.filter { !(it.selected && it.canBeAdded && it.amount != null) }.forEach { discard(it) }
+        discardAll(candidates.filter { !(it.selected && it.canBeAdded && it.amount != null) })
+    }
+
+    /** Removes every ticked slip */
+    fun discardSelected() {
+        discardAll(candidates.filter { it.selected && it.canBeAdded })
+    }
+
+    private fun discardAll(toDiscard: List<SlipCandidate>) {
+        if (toDiscard.isEmpty()) return
+        val ids = toDiscard.map { it.id }.toSet()
+        candidates.removeAll { it.id in ids }
+        val pendingIds = toDiscard.mapNotNull { it.mediaId }.filter { it in shownPendingIds }
+        if (pendingIds.isNotEmpty()) {
+            shownPendingIds -= pendingIds.toSet()
+            viewModelScope.launch {
+                watchSettings.removePending(pendingIds)
+                pendingIds.forEach { SlipNotifications.cancel(context, it) }
+            }
+        }
     }
 
     private fun read(sources: List<Source>, onlySlips: Boolean) {
@@ -155,14 +170,23 @@ class SlipImportViewModel @Inject constructor(
     fun loadPending() {
         viewModelScope.launch {
             val pending = watchSettings.pending.first()
+            val importedMediaIds = spendsRepository.getUsedSlipMediaIds()
+            val staleIds = pending.mapNotNull { it.mediaId }.filter { it in importedMediaIds }
+            if (staleIds.isNotEmpty()) {
+                watchSettings.removePending(staleIds)
+                staleIds.forEach { SlipNotifications.cancel(context, it) }
+            }
+
             val known = candidates.mapNotNull { it.mediaId }.toSet()
             val factory = SlipCandidateFactory.load(spendsRepository, tagMemory)
 
-            pending.filter { it.mediaId !in known }.forEach { slip ->
-                shownPendingIds += slip.mediaId!!
-                // The budget may have changed since it was found
-                candidates.add(slip.copy(id = nextId++, selected = slip.looksGood && factory.stillNew(slip)))
-            }
+            pending
+                .filter { it.mediaId != null && it.mediaId !in known && it.mediaId !in importedMediaIds }
+                .forEach { slip ->
+                    shownPendingIds += slip.mediaId!!
+                    // The budget may have changed since it was found
+                    candidates.add(slip.copy(id = nextId++, selected = slip.looksGood && factory.stillNew(slip)))
+                }
         }
     }
 

@@ -250,6 +250,10 @@
   <string name="slip_default_tag">Other</string>
   <string name="slip_import_stop">Stop, keep what\'s read so far</string>
   <string name="slip_import_discard">Discard</string>
+  <plurals name="slip_import_discard_selected">
+    <item quantity="one">Discard %d selected slip</item>
+    <item quantity="other">Discard %d selected slips</item>
+  </plurals>
   <plurals name="slip_import_discard_unticked">
     <item quantity="one">Discard %d unticked slip</item>
     <item quantity="other">Discard %d unticked slips</item>
@@ -259,7 +263,10 @@
     <item quantity="other">Scan %d folders for slips</item>
   </plurals>
   <string name="slip_folders_check_now">Check for new slips now</string>
-  <string name="slip_import_scan_folders">Scan %1$s for slips</string>
+  <string name="slip_folders_notifications_blocked">Notifications are off for Buckwheat, so new slips can\'t alert you</string>
+  <string name="slip_folders_allow_notifications">Allow notifications</string>
+  <string name="slip_folders_omit_imported">Skip already imported slips</string>
+  <string name="slip_import_scan_folders">Scan %1$s for today\'s slips</string>
   <string name="slip_import_more_options">Folders and older slips</string>
   <string name="slip_scan_channel">Reading slips</string>
   <string name="slip_scan_title">Reading slips…</string>
@@ -271,4 +278,13 @@
     <item quantity="one">Found %1$d slip in %2$d of %3$d images</item>
     <item quantity="other">Found %1$d slips in %2$d of %3$d images</item>
   </plurals>
+  <plurals name="slip_scan_done_omitted">
+    <item quantity="one">Found %1$d new slip (%2$d already imported)</item>
+    <item quantity="other">Found %1$d new slips (%2$d already imported)</item>
+  </plurals>
+  <plurals name="slip_scan_all_imported">
+    <item quantity="one">No new slips (%d already imported)</item>
+    <item quantity="other">No new slips (%d already imported)</item>
+  </plurals>
+  <string name="slip_scan_none_new">No new slips found</string>
 </resources>

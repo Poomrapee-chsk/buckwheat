@@ -20,6 +20,7 @@ import com.danilkinkin.buckwheat.slip.SlipCandidate
 import com.danilkinkin.buckwheat.slip.SlipCandidateFactory
 import com.danilkinkin.buckwheat.slip.SlipParser
 import com.danilkinkin.buckwheat.slip.SlipTextRecognizer
+import com.danilkinkin.buckwheat.slip.SlipWarning
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
 import java.time.LocalDateTime
@@ -37,6 +38,7 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val settings = deps.watchSettings()
         val buckets = inputData.getLongArray(KEY_BUCKETS)?.toList().orEmpty()
         val from = inputData.getLong(KEY_FROM, 0)
+        val omitImported = inputData.getBoolean(KEY_OMIT_IMPORTED, true)
 
         try {
             setForeground(foregroundInfo(0, 0, 0))
@@ -45,53 +47,78 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
             Log.w(TAG, "No foreground", e)
         }
 
-        val images = SlipMedia.queryImages(applicationContext, buckets, from / 1000 - 1)
+        val allImages = SlipMedia.queryImages(applicationContext, buckets, from / 1000 - 1)
+        val importedMediaIds = if (omitImported) deps.spendsRepository().getUsedSlipMediaIds() else emptySet()
+        val (alreadyImported, images) = allImages.partition { it.mediaId in importedMediaIds }
         val factory = SlipCandidateFactory.load(deps.spendsRepository(), deps.tagMemory())
         val found = mutableListOf<SlipCandidate>()
         val batch = mutableListOf<SlipCandidate>()
         var read = 0
         var skipped = 0
+        var omitted = alreadyImported.size
 
         try {
-            SlipTextRecognizer(applicationContext).use { recognizer ->
-                for (image in images) {
-                    if (isStopped) break
+            if (images.isNotEmpty()) {
+                SlipTextRecognizer(applicationContext).use { recognizer ->
+                    for (image in images) {
+                        if (isStopped) break
 
-                    val text = try {
-                        recognizer.recognize(image.uri)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Throwable) {
-                        Log.w(TAG, "Can't read ${image.uri}", e)
-                        ""
-                    }
-                    val imageDate = SlipMedia.imageDate(applicationContext, image.uri)
-                        ?: LocalDateTime.ofInstant(Instant.ofEpochSecond(image.dateAdded), ZoneId.systemDefault())
+                        val text = try {
+                            recognizer.recognize(image.uri)
+                        } catch (e: CancellationException) {
+                            throw e
+                        } catch (e: Throwable) {
+                            Log.w(TAG, "Can't read ${image.uri}", e)
+                            ""
+                        }
+                        val imageDate = SlipMedia.imageDate(applicationContext, image.uri)
+                            ?: LocalDateTime.ofInstant(Instant.ofEpochSecond(image.dateAdded), ZoneId.systemDefault())
 
-                    if (SlipParser.looksLikeSlip(text, imageDate)) {
-                        val candidate = factory.build(found.size, text, found, image.mediaId, imageDate = imageDate)
-                        found += candidate
-                        batch += candidate
-                    } else {
-                        skipped++
-                    }
-                    read++
+                        if (SlipParser.looksLikeSlip(text, imageDate)) {
+                            val candidate = factory.build(found.size, text, found, image.mediaId, imageDate = imageDate)
+                            if (omitImported && SlipWarning.DUPLICATE in candidate.warnings) {
+                                omitted++
+                            } else {
+                                found += candidate
+                                batch += candidate
+                            }
+                        } else {
+                            skipped++
+                        }
+                        read++
 
-                    if (batch.size >= BATCH || read == images.size) {
-                        settings.addPending(batch.toList())
-                        batch.clear()
+                        if (batch.size >= BATCH || read == images.size) {
+                            settings.addPending(batch.toList())
+                            batch.clear()
+                        }
+                        setProgress(
+                            workDataOf(
+                                KEY_READ to read,
+                                KEY_TOTAL to images.size,
+                                KEY_FOUND to found.size,
+                                KEY_SKIPPED to skipped,
+                                KEY_OMITTED to omitted,
+                            )
+                        )
+                        notify(foregroundNotification(read, images.size, found.size))
                     }
-                    setProgress(workDataOf(KEY_READ to read, KEY_TOTAL to images.size, KEY_FOUND to found.size, KEY_SKIPPED to skipped))
-                    notify(foregroundNotification(read, images.size, found.size))
                 }
             }
         } finally {
             // Stopped early: keep what was found so far
             if (batch.isNotEmpty()) settings.addPending(batch.toList())
-            showDone(found.size, read, images.size)
+            showDone(found.size, read, images.size, omitted)
         }
 
-        return Result.success(workDataOf(KEY_READ to read, KEY_TOTAL to images.size, KEY_FOUND to found.size, KEY_SKIPPED to skipped))
+        return Result.success(
+            workDataOf(
+                KEY_READ to read,
+                KEY_TOTAL to images.size,
+                KEY_FOUND to found.size,
+                KEY_SKIPPED to skipped,
+                KEY_OMITTED to omitted,
+            )
+        )
     }
 
     private fun ensureChannel() {
@@ -146,10 +173,17 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
         }
     }
 
-    private fun showDone(found: Int, read: Int, total: Int) {
+    private fun showDone(found: Int, read: Int, total: Int, omitted: Int) {
         if (!SlipNotifications.canNotify(applicationContext)) return
         ensureChannel()
-        val text = applicationContext.resources.getQuantityString(R.plurals.slip_scan_done, found, found, read, total)
+        val text = when {
+            found == 0 && omitted > 0 ->
+                applicationContext.resources.getQuantityString(R.plurals.slip_scan_all_imported, omitted, omitted)
+            omitted > 0 ->
+                applicationContext.resources.getQuantityString(R.plurals.slip_scan_done_omitted, found, found, omitted)
+            else ->
+                applicationContext.resources.getQuantityString(R.plurals.slip_scan_done, found, found, read, total)
+        }
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_money)
             .setContentTitle(applicationContext.getString(R.string.slip_scan_done_title))
@@ -173,18 +207,31 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
 
         private const val KEY_BUCKETS = "buckets"
         private const val KEY_FROM = "from"
+        private const val KEY_OMIT_IMPORTED = "omitImported"
         const val KEY_READ = "read"
         const val KEY_TOTAL = "total"
         const val KEY_FOUND = "found"
         const val KEY_SKIPPED = "skipped"
+        const val KEY_OMITTED = "omitted"
 
         /** Starts a scan of [buckets] for images added since [fromMillis]; replaces a running one */
-        fun start(context: Context, buckets: Collection<Long>, fromMillis: Long) {
+        fun start(
+            context: Context,
+            buckets: Collection<Long>,
+            fromMillis: Long,
+            omitImported: Boolean = true,
+        ) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WORK_NAME,
                 ExistingWorkPolicy.REPLACE,
                 OneTimeWorkRequestBuilder<SlipScanWorker>()
-                    .setInputData(workDataOf(KEY_BUCKETS to buckets.toLongArray(), KEY_FROM to fromMillis))
+                    .setInputData(
+                        workDataOf(
+                            KEY_BUCKETS to buckets.toLongArray(),
+                            KEY_FROM to fromMillis,
+                            KEY_OMIT_IMPORTED to omitImported,
+                        )
+                    )
                     .build(),
             )
             NotificationManagerCompat.from(context).cancel(DONE_ID)
