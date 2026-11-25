@@ -140,6 +140,13 @@ fun SpendsCalendar(
         days.toMutableMap()
     }
 
+    val treatDays = remember(transactions) {
+        transactions
+            .filter { it.type == TransactionType.SPENT && it.manualTreat }
+            .map { it.date.toLocalDate() }
+            .toSet()
+    }
+
     val calendarState by remember {
         mutableStateOf(
             CalendarState(
@@ -206,6 +213,7 @@ fun SpendsCalendar(
                                 week = week,
                                 calendarUiState = calendarUiState,
                                 spendingDays = spendingDays,
+                                treatDays = treatDays,
                             )
                         }
                     }
@@ -247,6 +255,7 @@ internal fun Week(
     calendarUiState: CalendarUiState,
     week: Week,
     spendingDays: Map<LocalDate, SpendingDay>,
+    treatDays: Set<LocalDate>,
 ) {
     val beginningWeek = week.yearMonth.atDay(1).plusWeeks(week.number.toLong())
 
@@ -259,6 +268,7 @@ internal fun Week(
                 modifier = Modifier,
                 day = currentDay,
                 spendingDays = spendingDays,
+                isTreat = treatDays.contains(currentDay),
             )
         } else {
             Box(
@@ -293,7 +303,8 @@ internal fun DayOfWeekHeading(day: String, modifier: Modifier = Modifier) {
 internal fun Day(
     day: LocalDate,
     spendingDays: Map<LocalDate, SpendingDay>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isTreat: Boolean = false,
 ) {
     val spendingDay = if (spendingDays[day] === null || spendingDays[day]!!.spending.isZero()) {
         null
@@ -390,6 +401,17 @@ internal fun Day(
                 style = MaterialTheme.typography.bodyMedium,
                 color = harmonizedColor.onContainer,
             )
+            if (isTreat) {
+                Icon(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 3.dp, end = 3.dp)
+                        .size(10.dp),
+                    painter = painterResource(R.drawable.ic_star),
+                    tint = MaterialTheme.colorScheme.tertiary,
+                    contentDescription = stringResource(R.string.treat_manual),
+                )
+            }
         }
     }
 }

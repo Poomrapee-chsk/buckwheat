@@ -58,7 +58,6 @@ fun Analytics(
     onCreateNewPeriod: () -> Unit = {},
     onClose: () -> Unit = {},
 ) {
-    val treatHistory by spendsViewModel.spendingHistory.observeAsState(emptyList())
     val periodFinished by spendsViewModel.periodFinished.observeAsState(false)
     val transactions by spendsViewModel.transactions.observeAsState(emptyList())
     val spends by spendsViewModel.spends.observeAsState(emptyList())
@@ -72,6 +71,24 @@ fun Analytics(
     val afterMigrationToTransactions =
         remember(transactions) { mutableStateOf(transactions.none { it.type == TransactionType.INCOME }) }
 
+
+    val treatMonthCount = remember(transactions) {
+        val month = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }
+        val monthStart = month.timeInMillis
+        month.add(Calendar.MONTH, 1)
+        val monthEnd = month.timeInMillis
+
+        transactions.count {
+            it.type == TransactionType.SPENT && it.manualTreat &&
+                it.date.time >= monthStart && it.date.time < monthEnd
+        }
+    }
 
     val navigationBarHeight =
         LocalWindowInsets.current.calculateBottomPadding().coerceAtLeast(16.dp)
@@ -97,25 +114,6 @@ fun Analytics(
                         )
                     }
                     Column(Modifier.fillMaxWidth()) {
-                        val month = Calendar.getInstance().apply {
-                            set(Calendar.DAY_OF_MONTH, 1)
-                            set(Calendar.HOUR_OF_DAY, 0)
-                            set(Calendar.MINUTE, 0)
-                            set(Calendar.SECOND, 0)
-                            set(Calendar.MILLISECOND, 0)
-                        }
-                        val monthStart = month.timeInMillis
-                        month.add(Calendar.MONTH, 1)
-                        val monthEnd = month.timeInMillis
-                        val treatCount = treatHistory.count {
-                            it.date.time >= monthStart && it.date.time < monthEnd &&
-                                (it.manualTreat || it.automaticTreat)
-                        }
-                        Text(
-                            text = stringResource(R.string.treat_month_count, treatCount),
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.padding(vertical = 16.dp),
-                        )
                         WholeBudgetCard(
                             budget = wholeBudget,
                             currency = spendsViewModel.currency.value!!,
@@ -169,6 +167,11 @@ fun Analytics(
                             SpendsCountCard(
                                 modifier = Modifier.fillMaxWidth(),
                                 count = spends.size,
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            TreatMyselfCard(
+                                modifier = Modifier.fillMaxWidth(),
+                                count = treatMonthCount,
                             )
                             if (!afterMigrationToTransactions.value) {
                                 Spacer(modifier = Modifier.height(36.dp))

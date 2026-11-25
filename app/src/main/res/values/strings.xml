@@ -148,7 +148,7 @@
   <string name="confirm_finish_budget_description">Your current budget will be completed, and you will no longer be able to make any further expenses</string>
   <string name="confirm_finish_budget">Finish budget</string>
     <string name="treat_manual">Treat myself</string>
-    <string name="treat_month_count">Treats this month: %1$d</string>
+    <string name="treat_month_label">Treat myself this month</string>
     <string name="treat_automatic">Lavish spending</string>
     <string name="treat_popup_title">Treating yourself?</string>
     <string name="treat_popup_message">This amount exceeds 1.5× your median purchase from the previous 30 days. Mark it as a treat?</string>
