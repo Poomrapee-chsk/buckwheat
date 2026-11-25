@@ -7,6 +7,8 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -64,11 +66,14 @@ import com.danilkinkin.buckwheat.slip.watch.SlipFoldersViewModel
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import com.danilkinkin.buckwheat.util.prettyDate
+import com.danilkinkin.buckwheat.util.toDate
+import java.time.LocalDate
 
 const val SLIP_IMPORT_SHEET = "slipImport"
 
 private const val MAX_SLIPS = 50
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SlipImport(
     activityResultRegistryOwner: ActivityResultRegistryOwner?,
@@ -88,6 +93,26 @@ fun SlipImport(
 
     // Slips found in watched folders, e.g. after tapping a notification
     LaunchedEffect(Unit) { slipImportViewModel.loadPending() }
+
+    // A background folder scan: its progress, and the slips it found so far
+    val scanWork by slipImportViewModel.scanWork.observeAsState(emptyList())
+    val scan = scanWork.firstOrNull()
+    val scanRunning = scan != null && !scan.state.isFinished
+    val scanData = if (scanRunning) scan!!.progress else scan?.outputData
+    val scanFound = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_FOUND, 0) ?: 0
+    val scanOmitted = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_OMITTED, 0) ?: 0
+    var wasScanRunning by remember { mutableStateOf(false) }
+    var emptyScanOmitted by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(scanRunning, scanFound, scanOmitted) {
+        if (scanRunning) {
+            wasScanRunning = true
+            emptyScanOmitted = null
+        } else if (wasScanRunning) {
+            wasScanRunning = false
+            emptyScanOmitted = if (scanFound == 0) scanOmitted else null
+        }
+        slipImportViewModel.loadPending()
+    }
 
     val pickSlips: () -> Unit = if (activityResultRegistryOwner == null) {
         {}
@@ -185,7 +210,7 @@ fun SlipImport(
                     .padding(bottom = navigationBarHeight),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                if (candidates.isEmpty() && !slipImportViewModel.isReading) {
+                if (candidates.isEmpty() && !slipImportViewModel.isReading && !scanRunning) {
                     Text(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -206,13 +231,58 @@ fun SlipImport(
                             textAlign = TextAlign.Center,
                         )
                     }
-                    Button(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = 56.dp),
-                        onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
-                    ) {
-                        Text(stringResource(R.string.slip_import_choose_folders))
+                    emptyScanOmitted?.let { omitted ->
+                        Text(
+                            modifier = Modifier.fillMaxWidth(),
+                            text = if (omitted > 0) {
+                                pluralStringResource(R.plurals.slip_scan_all_imported, omitted, omitted)
+                            } else {
+                                stringResource(R.string.slip_scan_none_new)
+                            },
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = LocalContentColor.current.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center,
+                        )
+                    }
+                    if (watchedFolders.isNotEmpty()) {
+                        // Scan the chosen folders for today's new slips, omitting already-imported ones
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            onClick = {
+                                emptyScanOmitted = null
+                                slipImportViewModel.scanFolders(
+                                    watchedFolders.map { it.bucketId },
+                                    LocalDate.now().toDate(),
+                                    omitImported = true,
+                                )
+                            },
+                        ) {
+                            Text(
+                                stringResource(
+                                    R.string.slip_import_scan_folders,
+                                    watchedFolders.joinToString(", ") { it.name },
+                                )
+                            )
+                        }
+                        OutlinedButton(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
+                        ) {
+                            Text(stringResource(R.string.slip_import_more_options))
+                        }
+                    } else {
+                        Button(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(min = 56.dp),
+                            onClick = { appViewModel.openSheet(PathState(SLIP_FOLDERS_SHEET)) },
+                        ) {
+                            Text(stringResource(R.string.slip_import_choose_folders))
+                        }
                     }
                     OutlinedButton(
                         modifier = Modifier
@@ -244,6 +314,28 @@ fun SlipImport(
                     )
                 }
 
+                if (scanRunning) {
+                    val read = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_READ, 0) ?: 0
+                    val total = scanData?.getInt(com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.KEY_TOTAL, 0) ?: 0
+                    Text(
+                        text = if (total == 0) stringResource(R.string.slip_scan_title)
+                        else stringResource(R.string.slip_scan_progress, read, total, scanFound),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    LinearProgressIndicator(
+                        progress = { read.toFloat() / total.coerceAtLeast(1) },
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = stringResource(R.string.slip_scan_background_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = LocalContentColor.current.copy(alpha = 0.7f),
+                    )
+                    OutlinedButton(onClick = { slipImportViewModel.stopReading() }) {
+                        Text(stringResource(R.string.slip_import_stop))
+                    }
+                }
+
                 if (slipImportViewModel.isReading) {
                     Text(
                         text = stringResource(
@@ -265,10 +357,20 @@ fun SlipImport(
                     }
                 }
 
+                val ticked = candidates.count { it.selected && it.canBeAdded }
                 val unticked = candidates.count { !(it.selected && it.canBeAdded && it.amount != null) }
-                if (unticked > 0 && !slipImportViewModel.isReading) {
-                    TextButton(onClick = { slipImportViewModel.discardUnselected() }) {
-                        Text(pluralStringResource(R.plurals.slip_import_discard_unticked, unticked, unticked))
+                if ((ticked > 0 || unticked > 0) && !slipImportViewModel.isReading) {
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (ticked > 0) {
+                            TextButton(onClick = { slipImportViewModel.discardSelected() }) {
+                                Text(pluralStringResource(R.plurals.slip_import_discard_selected, ticked, ticked))
+                            }
+                        }
+                        if (unticked > 0) {
+                            TextButton(onClick = { slipImportViewModel.discardUnselected() }) {
+                                Text(pluralStringResource(R.plurals.slip_import_discard_unticked, unticked, unticked))
+                            }
+                        }
                     }
                 }
 

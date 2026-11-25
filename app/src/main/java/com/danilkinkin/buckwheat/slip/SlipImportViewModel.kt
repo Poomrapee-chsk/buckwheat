@@ -57,65 +57,69 @@ class SlipImportViewModel @Inject constructor(
     /** Images the user picked: every one is shown, even when it doesn't look like a slip */
     fun readSlips(uris: List<Uri>) = read(uris.map { Source(it, null) }, onlySlips = false)
 
-    /** Past images of the chosen folders: only the ones that look like slips are shown */
-    fun scanFolders(bucketIds: Collection<Long>, from: Date, force: Boolean = false) {
+    /**
+     * Runs in the background ([SlipScanWorker]) with a progress notification, so it doesn't need the
+     * app open; slips found come in through the waiting list, see [loadPending]
+     *
+     * @param force read again slips that are already in the list (or waiting from a notification)
+     *   and replace them, so the current parser's result is shown instead of an old one
+     */
+    fun scanFolders(
+        bucketIds: Collection<Long>,
+        from: Date,
+        omitImported: Boolean = true,
+        force: Boolean = false,
+    ) {
         if (isReading) return
-        isReading = true
-
-        readJob = viewModelScope.launch {
-            val images = try {
-                withContext(Dispatchers.IO) {
-                    SlipMedia.queryImages(context, bucketIds, from.time / 1000 - 1)
-                }
-            } finally {
-                isReading = false
-            }
-            readJob = null
-            isReading = false
-            read(images.map { Source(it.uri, it.mediaId) }, onlySlips = true, force = force)
+        if (force) {
+            candidates.removeAll { it.mediaId != null }
+            shownPendingIds.clear()
         }
+        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.start(context, bucketIds, from.time, omitImported, force)
     }
+
+    /** Progress of a background folder scan */
+    val scanWork = com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.progress(context)
 
     private var readJob: kotlinx.coroutines.Job? = null
 
     /** Stops reading; slips read so far stay in the list */
     fun stopReading() {
         readJob?.cancel()
+        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.stop(context)
     }
 
     /** Removes a slip from the list; one found in a watched folder isn't offered again */
     fun discard(candidate: SlipCandidate) {
-        candidates.removeAll { it.id == candidate.id }
-        candidate.mediaId?.takeIf { it in shownPendingIds }?.let { mediaId ->
-            shownPendingIds -= mediaId
-            viewModelScope.launch {
-                watchSettings.removePending(listOf(mediaId))
-                SlipNotifications.cancel(context, mediaId)
-            }
-        }
+        discardAll(listOf(candidate))
     }
 
     /** Removes every slip that isn't ticked */
     fun discardUnselected() {
-        candidates.filter { !(it.selected && it.canBeAdded && it.amount != null) }.forEach { discard(it) }
+        discardAll(candidates.filter { !(it.selected && it.canBeAdded && it.amount != null) })
     }
 
-    /**
-     * @param force read again slips that are already in the list (or waiting from a notification)
-     *   and replace them, so the current parser's result is shown instead of an old one
-     */
-    private fun read(sources: List<Source>, onlySlips: Boolean, force: Boolean = false) {
-        if (isReading) return
+    /** Removes every ticked slip */
+    fun discardSelected() {
+        discardAll(candidates.filter { it.selected && it.canBeAdded })
+    }
 
-        if (force) {
-            val ids = sources.mapNotNull { it.mediaId }.toSet()
-            candidates.removeAll { it.mediaId in ids }
-            shownPendingIds.removeAll(ids)
+    private fun discardAll(toDiscard: List<SlipCandidate>) {
+        if (toDiscard.isEmpty()) return
+        val ids = toDiscard.map { it.id }.toSet()
+        candidates.removeAll { it.id in ids }
+        val pendingIds = toDiscard.mapNotNull { it.mediaId }.filter { it in shownPendingIds }
+        if (pendingIds.isNotEmpty()) {
+            shownPendingIds -= pendingIds.toSet()
             viewModelScope.launch {
-                watchSettings.removePending(ids)
-                ids.forEach { SlipNotifications.cancel(context, it) }
+                watchSettings.removePending(pendingIds)
+                pendingIds.forEach { SlipNotifications.cancel(context, it) }
             }
         }
+    }
+
+    private fun read(sources: List<Source>, onlySlips: Boolean) {
+        if (isReading) return
 
         isReading = true
         readCount = 0
@@ -174,14 +178,23 @@ class SlipImportViewModel @Inject constructor(
     fun loadPending() {
         viewModelScope.launch {
             val pending = watchSettings.pending.first()
+            val importedMediaIds = spendsRepository.getUsedSlipMediaIds()
+            val staleIds = pending.mapNotNull { it.mediaId }.filter { it in importedMediaIds }
+            if (staleIds.isNotEmpty()) {
+                watchSettings.removePending(staleIds)
+                staleIds.forEach { SlipNotifications.cancel(context, it) }
+            }
+
             val known = candidates.mapNotNull { it.mediaId }.toSet()
             val factory = SlipCandidateFactory.load(spendsRepository, tagMemory)
 
-            pending.filter { it.mediaId !in known }.forEach { slip ->
-                shownPendingIds += slip.mediaId!!
-                // The budget may have changed since it was found
-                candidates.add(slip.copy(id = nextId++, selected = factory.stillAddable(slip)))
-            }
+            pending
+                .filter { it.mediaId != null && it.mediaId !in known && it.mediaId !in importedMediaIds }
+                .forEach { slip ->
+                    shownPendingIds += slip.mediaId!!
+                    // The budget may have changed since it was found
+                    candidates.add(slip.copy(id = nextId++, selected = slip.looksGood && factory.stillNew(slip)))
+                }
         }
     }
 
@@ -214,7 +227,10 @@ class SlipImportViewModel @Inject constructor(
 
         viewModelScope.launch {
             val defaultTag = context.getString(com.danilkinkin.buckwheat.R.string.slip_default_tag)
-            val result = spendsRepository.importHistory(toAdd.map { it.toHistoryRow(pastPeriodBudget, defaultTag) })
+            val result = spendsRepository.importHistory(
+                toAdd.map { it.toHistoryRow(pastPeriodBudget, defaultTag) },
+                extendCurrentPeriod = true,
+            )
 
             tagMemory.remember(
                 toAdd

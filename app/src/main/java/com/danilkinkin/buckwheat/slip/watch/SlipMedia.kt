@@ -29,6 +29,16 @@ data class SlipImage(
 object SlipMedia {
     val imagesUri: Uri = MediaStore.Images.Media.EXTERNAL_CONTENT_URI
 
+    /**
+     * Both the aggregate external URI and the primary external volume URI: on Android 10+, bank
+     * apps saving through scoped storage insert under `external_primary`, whose change
+     * notifications don't always trigger observers registered only on `external`.
+     */
+    val watchUris: List<Uri> = listOf(
+        MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+        MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY),
+    ).distinct()
+
     val readPermission: String =
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             Manifest.permission.READ_MEDIA_IMAGES

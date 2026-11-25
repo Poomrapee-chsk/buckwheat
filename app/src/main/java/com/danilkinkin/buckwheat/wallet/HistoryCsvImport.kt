@@ -89,6 +89,8 @@ class HistoryImportPlan(
     val duplicates: Int,
     /** Dated in the future */
     val skipped: Int,
+    /** The current period's new start, moved back to take in this month's earlier slips; null to keep it */
+    val newCurrentStart: LocalDate? = null,
 ) {
     val added get() = toCurrent.size + toPast.values.sumOf { it.size }
 
@@ -96,6 +98,17 @@ class HistoryImportPlan(
         /** What makes two spends the same: minute, amount and tag */
         fun key(date: LocalDateTime, amount: BigDecimal, tag: String) =
             Triple(date.withSecond(0).withNano(0), amount.stripTrailingZeros(), tag.trim())
+
+        /**
+         * How far back the current period can take in earlier slips: the 1st of its month, but not into
+         * a past period. Null when it can't move back (it starts on the 1st, or a past period ends just before)
+         */
+        fun extendableStart(currentStart: LocalDate, existingPeriods: List<Pair<LocalDate, LocalDate>>): LocalDate? {
+            val monthStart = currentStart.withDayOfMonth(1)
+            val afterPast = existingPeriods.map { it.second }.filter { it.isBefore(currentStart) }.maxOrNull()?.plusDays(1)
+            val start = listOfNotNull(monthStart, afterPast).max()
+            return start.takeIf { it.isBefore(currentStart) }
+        }
 
         fun make(
             rows: List<HistoryRow>,
@@ -106,7 +119,13 @@ class HistoryImportPlan(
             now: LocalDateTime,
             /** First and last day of the past periods already here */
             existingPeriods: List<Pair<LocalDate, LocalDate>> = emptyList(),
+            /**
+             * Rows without a period of their own (slips) from this day up to [currentStart] join the
+             * current period, which then starts here: as if it had been tracked since. See [extendableStart]
+             */
+            currentExtendableStart: LocalDate? = null,
         ): HistoryImportPlan {
+            var newCurrentStart: LocalDate? = null
             val seen = existing.toMutableSet()
             val references = usedReferences.toMutableSet()
             val toCurrent = mutableListOf<HistoryRow>()
@@ -134,6 +153,13 @@ class HistoryImportPlan(
                     toCurrent += row
                     return@forEach
                 }
+                if (currentStart != null && currentExtendableStart != null && row.periodStart == null &&
+                    !day.isBefore(currentExtendableStart)
+                ) {
+                    toCurrent += row
+                    newCurrentStart = currentExtendableStart
+                    return@forEach
+                }
 
                 var start = row.periodStart
                 var end = row.periodEnd?.let(clamp)
@@ -157,7 +183,7 @@ class HistoryImportPlan(
                 toPast.getOrPut(start!! to end!!) { mutableListOf() } += row
             }
 
-            return HistoryImportPlan(toCurrent, toPast, duplicates, skipped)
+            return HistoryImportPlan(toCurrent, toPast, duplicates, skipped, newCurrentStart)
         }
     }
 }

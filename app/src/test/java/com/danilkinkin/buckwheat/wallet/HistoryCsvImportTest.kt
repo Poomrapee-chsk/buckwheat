@@ -146,6 +146,56 @@ class HistoryCsvImportTest {
     }
 
     @Test
+    fun thisMonthsEarlierSlipsJoinTheCurrentPeriod() {
+        // Period started on the 22nd; slips from the 1st-21st, and one from October
+        val currentStart = LocalDate.of(2026, 11, 22)
+        val extendable = HistoryImportPlan.extendableStart(currentStart, emptyList())
+        assertEquals(LocalDate.of(2026, 11, 1), extendable)
+
+        val plan = HistoryImportPlan.make(
+            rows = listOf(
+                row(LocalDateTime.of(2026, 11, 3, 9, 0), "45.00"),
+                row(LocalDateTime.of(2026, 11, 21, 18, 0), "120.00"),
+                row(LocalDateTime.of(2026, 10, 30, 12, 0), "60.00"),
+            ),
+            existing = emptySet(),
+            usedReferences = emptySet(),
+            currentStart = currentStart,
+            now = LocalDateTime.of(2026, 11, 22, 20, 0),
+            currentExtendableStart = extendable,
+        )
+        assertEquals(listOf(BigDecimal("45.00"), BigDecimal("120.00")), plan.toCurrent.map { it.amount })
+        assertEquals(LocalDate.of(2026, 11, 1), plan.newCurrentStart)
+        assertEquals(setOf(LocalDate.of(2026, 10, 1) to LocalDate.of(2026, 10, 31)), plan.toPast.keys)
+    }
+
+    @Test
+    fun currentPeriodDoesntGrowIntoAPastPeriod() {
+        // A past period ran to the 10th: the current one can only go back to the 11th
+        assertEquals(
+            LocalDate.of(2026, 11, 11),
+            HistoryImportPlan.extendableStart(LocalDate.of(2026, 11, 22), listOf(LocalDate.of(2026, 10, 11) to LocalDate.of(2026, 11, 10))),
+        )
+        // Already starts on the 1st, or right after a past period: nothing to take in
+        assertNull(HistoryImportPlan.extendableStart(LocalDate.of(2026, 11, 1), emptyList()))
+        assertNull(HistoryImportPlan.extendableStart(LocalDate.of(2026, 11, 22), listOf(LocalDate.of(2026, 10, 22) to LocalDate.of(2026, 11, 21))))
+    }
+
+    @Test
+    fun csvRowsWithTheirOwnPeriodDontMoveTheStart() {
+        val plan = HistoryImportPlan.make(
+            rows = listOf(row(LocalDateTime.of(2026, 11, 3, 9, 0), "45.00", start = LocalDate.of(2026, 10, 25), end = LocalDate.of(2026, 11, 21))),
+            existing = emptySet(),
+            usedReferences = emptySet(),
+            currentStart = LocalDate.of(2026, 11, 22),
+            now = LocalDateTime.of(2026, 11, 22, 20, 0),
+            currentExtendableStart = LocalDate.of(2026, 11, 1),
+        )
+        assertEquals(0, plan.toCurrent.size)
+        assertNull(plan.newCurrentStart)
+    }
+
+    @Test
     fun withoutBudgetEverythingIsPast() {
         val plan = HistoryImportPlan.make(
             rows = listOf(row(LocalDateTime.of(2026, 11, 10, 12, 0), "100.00")),
