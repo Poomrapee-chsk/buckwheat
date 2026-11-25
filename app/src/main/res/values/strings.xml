@@ -231,6 +231,7 @@
   <string name="import_history_failed">Couldn\'t import the file</string>
   <string name="slip_folders_scan_all">All slips</string>
   <string name="slip_folders_scan_all_now">Scan all slips</string>
+  <string name="slip_folders_rescan_all">Force rescan: read every slip again</string>
   <string name="slip_past_budget_title">Older slips</string>
   <plurals name="slip_past_budget_description">
     <item quantity="one">%d slip is from before this budget period. It goes into the past period of its day; if there isn\'t one, a past period is made for its month, with this budget:</item>
