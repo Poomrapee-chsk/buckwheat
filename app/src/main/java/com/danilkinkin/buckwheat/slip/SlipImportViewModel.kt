@@ -60,14 +60,22 @@ class SlipImportViewModel @Inject constructor(
     /**
      * Runs in the background ([SlipScanWorker]) with a progress notification, so it doesn't need the
      * app open; slips found come in through the waiting list, see [loadPending]
+     *
+     * @param force read again slips that are already in the list (or waiting from a notification)
+     *   and replace them, so the current parser's result is shown instead of an old one
      */
     fun scanFolders(
         bucketIds: Collection<Long>,
         from: Date,
         omitImported: Boolean = true,
+        force: Boolean = false,
     ) {
         if (isReading) return
-        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.start(context, bucketIds, from.time, omitImported)
+        if (force) {
+            candidates.removeAll { it.mediaId != null }
+            shownPendingIds.clear()
+        }
+        com.danilkinkin.buckwheat.slip.watch.SlipScanWorker.start(context, bucketIds, from.time, omitImported, force)
     }
 
     /** Progress of a background folder scan */

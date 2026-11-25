@@ -39,6 +39,7 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
         val buckets = inputData.getLongArray(KEY_BUCKETS)?.toList().orEmpty()
         val from = inputData.getLong(KEY_FROM, 0)
         val omitImported = inputData.getBoolean(KEY_OMIT_IMPORTED, true)
+        val force = inputData.getBoolean(KEY_FORCE, false)
 
         try {
             setForeground(foregroundInfo(0, 0, 0))
@@ -48,6 +49,11 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
         }
 
         val allImages = SlipMedia.queryImages(applicationContext, buckets, from / 1000 - 1)
+        if (force) {
+            val ids = allImages.map { it.mediaId }
+            settings.removePending(ids)
+            ids.forEach { SlipNotifications.cancel(applicationContext, it) }
+        }
         val importedMediaIds = if (omitImported) deps.spendsRepository().getUsedSlipMediaIds() else emptySet()
         val (alreadyImported, images) = allImages.partition { it.mediaId in importedMediaIds }
         val factory = SlipCandidateFactory.load(deps.spendsRepository(), deps.tagMemory())
@@ -208,6 +214,7 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
         private const val KEY_BUCKETS = "buckets"
         private const val KEY_FROM = "from"
         private const val KEY_OMIT_IMPORTED = "omitImported"
+        private const val KEY_FORCE = "force"
         const val KEY_READ = "read"
         const val KEY_TOTAL = "total"
         const val KEY_FOUND = "found"
@@ -220,6 +227,7 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
             buckets: Collection<Long>,
             fromMillis: Long,
             omitImported: Boolean = true,
+            force: Boolean = false,
         ) {
             WorkManager.getInstance(context).enqueueUniqueWork(
                 WORK_NAME,
@@ -230,6 +238,7 @@ class SlipScanWorker(context: Context, params: WorkerParameters) : CoroutineWork
                             KEY_BUCKETS to buckets.toLongArray(),
                             KEY_FROM to fromMillis,
                             KEY_OMIT_IMPORTED to omitImported,
+                            KEY_FORCE to force,
                         )
                     )
                     .build(),
