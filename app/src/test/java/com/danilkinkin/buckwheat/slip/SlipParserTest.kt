@@ -83,6 +83,16 @@ class SlipParserTest {
     }
 
     @Test
+    fun makeByKbankNoteWithoutLabel() {
+        val slip = SlipParser.parse(fixture("make_note_without_label"))
+        assertEquals(BigDecimal("404.00"), slip.amount)
+        assertEquals(LocalDateTime.of(2026, 11, 26, 22, 52), slip.dateTime)
+        assertEquals("SOMYING", slip.payee)
+        assertEquals("Bar", slip.note)
+        assertEquals("015331225212BPM04711", slip.reference)
+    }
+
+    @Test
     fun valueOnNextLineAndDroppedVowels() {
         val slip = SlipParser.parse(
             """

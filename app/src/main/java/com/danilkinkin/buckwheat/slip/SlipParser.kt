@@ -97,7 +97,7 @@ object SlipParser {
             payee = findLabeledValue(lines, PAYEE_LABELS)
                 ?.takeIf { value -> looksLikeName(value) }
                 ?: findUnlabeledPayee(withGaps),
-            note = findLabeledValue(lines, NOTE_LABELS),
+            note = findLabeledValue(lines, NOTE_LABELS) ?: findNoteAfterReference(lines),
             reference = findLabeledValue(lines, REFERENCE_LABELS)?.let { referenceIn(it) },
         )
     }
@@ -368,6 +368,40 @@ object SlipParser {
             return LocalDateTime.of(partial.year, partial.month, imageDate.dayOfMonth, partial.hour, partial.minute)
         }
         return null
+    }
+
+    // ---- note without a label ----
+    // Make by KBank prints the description alone under "Transaction ID", with no "Memo" label
+    // and no keyword to find it by: only its position gives it away.
+
+    // The slip's own footer: QR caption, merchant number, not something the user typed
+    private val FOOTER_WORDS = Regex("scan|verify|merchant|qr", RegexOption.IGNORE_CASE)
+    private val FOOTER_WORDS_THAI = listOf("สแกน", "ตรวจสอบ")
+    private const val MAX_UNLABELED_NOTE_LENGTH = 60
+
+    /**
+     * The line right below the transaction reference when it is plain text: the description a
+     * Make by KBank slip shows without a label. Null when that line is a number, a label or
+     * the slip's footer, so a slip with no description doesn't get a wrong one.
+     */
+    private fun findNoteAfterReference(lines: List<String>): String? {
+        val refIndex = lines.indexOfFirst { lineLabel(it, REFERENCE_LABELS) != null }
+        if (refIndex < 0) return null
+
+        var index = refIndex + 1
+        // The ID itself may sit on the line below its label
+        if (splitLabel(lines[refIndex]).second.isBlank() && lines.getOrNull(index)?.let { referenceIn(it) } != null) {
+            index++
+        }
+
+        val line = lines.getOrNull(index) ?: return null
+        if (FOOTER_WORDS.containsMatchIn(line)) return null
+        val lineSkeleton = skeleton(line)
+        if (FOOTER_WORDS_THAI.any { lineSkeleton.contains(skeleton(it)) }) return null
+
+        // A note is a short, mostly-letters line with a single wide gap-free run of text
+        return nameOnLine(line)
+            ?.takeIf { it.length <= MAX_UNLABELED_NOTE_LENGTH && referenceIn(it) == null }
     }
 
     // ---- payee without a label ----
